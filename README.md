@@ -114,8 +114,10 @@ tienda-virtual-portafolio/
 
 ## Seguridad
 
-No subas `.env`, secretos JWT ni contraseñas de base de datos al repositorio. En despliegue real, usa secretos del proveedor (CI/CD, vault, variables del hosting) y HTTPS con cookies `Secure` donde corresponda.
+- **Autenticación:** JWT de acceso y refresco; el cliente usa **cookies HTTP-only** para limitar el acceso a tokens desde JavaScript.
+- **Backend:** **Spring Security**, filtro de autenticación JWT, validación de DTOs y **revocación de sesión** mediante lista negra de tokens en **Redis**.
+- **Transporte:** en entornos reales las APIs y el front deben servirse sobre **HTTPS** para proteger credenciales y datos en tránsito.
 
 ## Licencia
 
-Uso personal / portafolio; ajusta la licencia si publicas el código de forma abierta.
+Este proyecto se publica bajo la [Licencia MIT](https://opensource.org/licenses/MIT). Puedes usar, copiar, modificar y distribuir el código manteniendo el aviso de copyright y la licencia incluidos.

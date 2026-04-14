@@ -2,9 +2,12 @@
 
 **Resumen:** aplicación full stack para administrar una tienda: autenticación con JWT y cookies, CRUD de productos y categorías, ventas, caja, reportes con gráficos, usuarios/roles y ajustes. Frontend en Next.js; API REST en Spring Boot con PostgreSQL y Redis.
 
-> Opcional: añade aquí tu nombre, enlace a LinkedIn o al deploy si lo tienes.
+Proyecto completado y publicado como parte de mi portafolio profesional.
 
-Pensada como proyecto de portafolio y referencia técnica en procesos de selección.
+## Estado del proyecto
+
+- **Estado:** Completado.
+- **Mantenimiento:** Se realizan mejoras puntuales y ajustes evolutivos cuando aplica.
 
 ## Arquitectura
 
@@ -27,8 +30,7 @@ El frontend proxifica las peticiones a `/api/*` hacia el backend mediante rewrit
 - **Reportes**: visualización con gráficos (MUI X Charts).
 - **Usuarios y roles**: administración de accesos.
 - **Ajustes y notificaciones**: preferencias y avisos.
-
-Las pantallas "coming soon" indican módulos en preparación.
+- **Gestión de sesión**: refresh de sesión y control de expiración con flujo autenticado.
 
 ## Requisitos previos
 

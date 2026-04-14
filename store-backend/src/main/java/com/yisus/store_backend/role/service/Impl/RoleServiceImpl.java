@@ -9,6 +9,7 @@ import com.yisus.store_backend.role.model.Role;
 import com.yisus.store_backend.role.model.Permission;
 import com.yisus.store_backend.role.repository.RoleRepository;
 import com.yisus.store_backend.role.repository.PermissionRepository;
+import com.yisus.store_backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -34,6 +35,7 @@ public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
@@ -101,6 +103,14 @@ public class RoleServiceImpl implements RoleService {
 
         if("SUPERADMIN".equals(role.getName())){
             throw new IllegalArgumentException("The SUPERADMIN role cannot be deleted");
+        }
+
+        long activeUsers = userRepository.countByRole_IdAndIsActiveTrue(id);
+        if (activeUsers > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar el rol '" + role.getName() + "' porque tiene " +
+                activeUsers + " usuario(s) activo(s) asignado(s). Reasigna o desactiva los usuarios primero."
+            );
         }
 
         role.setIsActive(false);
@@ -265,7 +275,7 @@ public class RoleServiceImpl implements RoleService {
         log.info("Initializing default permissions");
 
         Map<String, List<String>> moduleActions = new LinkedHashMap<>();
-        moduleActions.put("users",      Arrays.asList("create", "read", "update", "delete"));
+        moduleActions.put("users",      Arrays.asList("create", "read", "update", "delete", "change_password"));
         moduleActions.put("roles",      Arrays.asList("create", "read", "update", "delete"));
         moduleActions.put("categories", Arrays.asList("create", "read", "update", "delete"));
         moduleActions.put("products",   Arrays.asList("create", "read", "update", "delete"));
@@ -327,7 +337,8 @@ public class RoleServiceImpl implements RoleService {
                 "print", "Print",
                 "modify_price_below_sale", "Modify Price Below Sale",
                 "modify_price_below_purchase", "Modify Price Below Purchase",
-                "create_register", "Create Cash Register"
+                "create_register", "Create Cash Register",
+                "change_password", "Change Password"
         );
 
         String moduleName = moduleNames.getOrDefault(module, module);

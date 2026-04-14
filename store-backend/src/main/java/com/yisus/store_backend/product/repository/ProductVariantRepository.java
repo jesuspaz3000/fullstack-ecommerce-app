@@ -36,6 +36,9 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
 
     List<ProductVariant> findByProductId(Long productId);
 
+    @Query("SELECT pv FROM ProductVariant pv WHERE pv.product.id = :productId AND pv.isActive = true")
+    List<ProductVariant> findActiveByProductId(@Param("productId") Long productId);
+
     @Query("SELECT pv FROM ProductVariant pv WHERE pv.stock < :minStock")
     List<ProductVariant> findLowStock(@Param("minStock") Integer minStock);
 
@@ -60,13 +63,13 @@ public interface ProductVariantRepository extends JpaRepository<ProductVariant, 
     @Query("SELECT COUNT(pv) FROM ProductVariant pv WHERE pv.stock <= pv.minStock AND pv.isActive = true")
     int countLowStock();
 
-    @Query("SELECT COUNT(pv) FROM ProductVariant pv JOIN pv.product p WHERE p.category.id = :categoryId")
+    @Query("SELECT COUNT(pv) FROM ProductVariant pv JOIN pv.product p WHERE p.category.id = :categoryId AND pv.isActive = true AND p.isActive = true")
     long countByProductCategoryId(@Param("categoryId") Long categoryId);
 
-    @Query("SELECT COALESCE(SUM(pv.stock), 0) FROM ProductVariant pv JOIN pv.product p WHERE p.category.id = :categoryId")
+    @Query("SELECT COALESCE(SUM(pv.stock), 0) FROM ProductVariant pv JOIN pv.product p WHERE p.category.id = :categoryId AND pv.isActive = true AND p.isActive = true")
     long sumStockByProductCategoryId(@Param("categoryId") Long categoryId);
 
     /** Por categoría: número de variantes y suma de stock (una sola pasada por lista de categorías). */
-    @Query("SELECT p.category.id, COUNT(pv), COALESCE(SUM(pv.stock), 0) FROM ProductVariant pv JOIN pv.product p WHERE p.category.id IN :ids GROUP BY p.category.id")
+    @Query("SELECT p.category.id, COUNT(pv), COALESCE(SUM(pv.stock), 0) FROM ProductVariant pv JOIN pv.product p WHERE p.category.id IN :ids AND pv.isActive = true AND p.isActive = true GROUP BY p.category.id")
     List<Object[]> variantAggregatesGroupedByCategoryIds(@Param("ids") Collection<Long> ids);
 }

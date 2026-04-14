@@ -246,80 +246,75 @@ export default function CashSessionsReport() {
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
 
-            {/* Filtros */}
-            <Stack spacing={1.5}>
-                <Box
-                    sx={{
-                        display: "flex",
-                        flexDirection: { xs: "column", sm: "row" },
-                        flexWrap: "wrap",
-                        gap: 1.5,
-                        alignItems: { xs: "stretch", sm: "center" },
-                    }}
-                >
-                    <FormControl size="small" sx={{ minWidth: { sm: 150 }, width: { xs: "100%", sm: "auto" } }}>
-                        <InputLabel>Caja</InputLabel>
-                        <Select
-                            label="Caja"
-                            value={filters.cashRegisterId ?? ""}
-                            onChange={(e) => handleFilterChange({ cashRegisterId: e.target.value as number | "" })}
+            {/* Filtros + Exportar */}
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    flexWrap: "wrap",
+                    gap: 1.5,
+                    alignItems: { xs: "stretch", sm: "center" },
+                }}
+            >
+                <FormControl size="small" sx={{ minWidth: { sm: 150 }, width: { xs: "100%", sm: "auto" } }}>
+                    <InputLabel>Caja</InputLabel>
+                    <Select
+                        label="Caja"
+                        value={filters.cashRegisterId ?? ""}
+                        onChange={(e) => handleFilterChange({ cashRegisterId: e.target.value as number | "" })}
+                    >
+                        <MenuItem value="">Todas</MenuItem>
+                        {registers.map((r) => (
+                            <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>
+                        ))}
+                    </Select>
+                </FormControl>
+
+                <DatePicker
+                    label="Desde"
+                    value={fromDate}
+                    onChange={handleFromDate}
+                    maxDate={toDate ?? undefined}
+                    slotProps={datePickerSlotProps}
+                />
+                <DatePicker
+                    label="Hasta"
+                    value={toDate}
+                    onChange={handleToDate}
+                    minDate={fromDate ?? undefined}
+                    slotProps={datePickerSlotProps}
+                />
+
+                <FormControl size="small" sx={{ minWidth: { sm: 130 }, width: { xs: "100%", sm: "auto" } }}>
+                    <InputLabel>Estado</InputLabel>
+                    <Select
+                        label="Estado"
+                        value={filters.status ?? ""}
+                        onChange={(e) => handleFilterChange({ status: e.target.value })}
+                    >
+                        <MenuItem value="">Todas</MenuItem>
+                        <MenuItem value="OPEN">Abiertas</MenuItem>
+                        <MenuItem value="CLOSED">Cerradas</MenuItem>
+                    </Select>
+                </FormControl>
+
+                <Tooltip title="Exportar PDF" sx={{ ml: { sm: "auto" } }}>
+                    <span>
+                        <Button
+                            variant="contained"
+                            color="error"
+                            startIcon={exporting
+                                ? <CircularProgress size={16} color="inherit" />
+                                : <PictureAsPdfRoundedIcon />}
+                            onClick={handleExport}
+                            disabled={exporting || total === 0}
+                            sx={{ width: { xs: "100%", sm: "auto" } }}
                         >
-                            <MenuItem value="">Todas</MenuItem>
-                            {registers.map((r) => (
-                                <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-
-                    <DatePicker
-                        label="Desde"
-                        value={fromDate}
-                        onChange={handleFromDate}
-                        maxDate={toDate ?? undefined}
-                        slotProps={datePickerSlotProps}
-                    />
-                    <DatePicker
-                        label="Hasta"
-                        value={toDate}
-                        onChange={handleToDate}
-                        minDate={fromDate ?? undefined}
-                        slotProps={datePickerSlotProps}
-                    />
-
-                    <FormControl size="small" sx={{ minWidth: { sm: 130 }, width: { xs: "100%", sm: "auto" } }}>
-                        <InputLabel>Estado</InputLabel>
-                        <Select
-                            label="Estado"
-                            value={filters.status ?? ""}
-                            onChange={(e) => handleFilterChange({ status: e.target.value })}
-                        >
-                            <MenuItem value="">Todas</MenuItem>
-                            <MenuItem value="OPEN">Abiertas</MenuItem>
-                            <MenuItem value="CLOSED">Cerradas</MenuItem>
-                        </Select>
-                    </FormControl>
-                </Box>
-
-                <Box sx={{ display: "flex", justifyContent: { xs: "stretch", sm: "flex-end" } }}>
-                    <Tooltip title="Exportar PDF">
-                        <span style={{ display: "block", width: "100%" }}>
-                            <Button
-                                variant="contained"
-                                color="error"
-                                fullWidth
-                                sx={{ maxWidth: { sm: 220 } }}
-                                startIcon={exporting
-                                    ? <CircularProgress size={16} color="inherit" />
-                                    : <PictureAsPdfRoundedIcon />}
-                                onClick={handleExport}
-                                disabled={exporting || total === 0}
-                            >
-                                Exportar PDF
-                            </Button>
-                        </span>
-                    </Tooltip>
-                </Box>
-            </Stack>
+                            Exportar PDF
+                        </Button>
+                    </span>
+                </Tooltip>
+            </Box>
 
             {error && <Alert severity="error">{error}</Alert>}
 

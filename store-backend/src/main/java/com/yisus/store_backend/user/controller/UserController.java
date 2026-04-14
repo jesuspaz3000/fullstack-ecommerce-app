@@ -3,6 +3,7 @@ package com.yisus.store_backend.user.controller;
 import com.yisus.store_backend.common.dto.MessageResponse;
 import com.yisus.store_backend.common.dto.PaginatedResponse;
 import com.yisus.store_backend.common.util.PaginationValidator;
+import com.yisus.store_backend.user.dto.AdminChangePasswordDTO;
 import com.yisus.store_backend.user.dto.ChangePasswordDTO;
 import com.yisus.store_backend.user.dto.CreateUserDTO;
 import com.yisus.store_backend.user.dto.UpdateProfileDTO;
@@ -190,7 +191,11 @@ public class UserController {
     })
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('users.delete')")
-    public ResponseEntity<MessageResponse> deleteUser(@PathVariable Long id) {
+    public ResponseEntity<MessageResponse> deleteUser(@PathVariable Long id, Authentication authentication) {
+        Long currentUserId = ((User) authentication.getPrincipal()).getId();
+        if (currentUserId.equals(id)) {
+            throw new IllegalArgumentException("No puedes eliminarte a ti mismo.");
+        }
         userService.deleteUser(id);
         return ResponseEntity.ok(new MessageResponse("User deactivated successfully"));
     }
@@ -237,6 +242,16 @@ public class UserController {
     public ResponseEntity<UserDTO> deleteAvatar(Authentication authentication) {
         Long userId = ((User) authentication.getPrincipal()).getId();
         return ResponseEntity.ok(userService.deleteAvatar(userId));
+    }
+
+    @Operation(summary = "Admin reset password", description = "Allows an admin to set a new password for any user")
+    @PatchMapping("/{id}/password")
+    @PreAuthorize("hasAuthority('users.change_password')")
+    public ResponseEntity<MessageResponse> adminChangePassword(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminChangePasswordDTO dto) {
+        userService.adminChangePassword(id, dto.getNewPassword());
+        return ResponseEntity.ok(new MessageResponse("Password changed successfully"));
     }
 
     @Operation(summary = "Change password", description = "Allows the authenticated user to change their password")

@@ -62,6 +62,26 @@ export function useRole(id: number) {
     return { data, loading, error, refetch: load };
 }
 
+// ─── useGetRoleById ───────────────────────────────────────────────────────────
+
+export function useGetRoleById(id: number | null | undefined, enabled: boolean) {
+    const [data, setData]       = useState<Role | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!enabled || !id) { setData(null); setError(null); return; }
+        setLoading(true);
+        setError(null);
+        RoleService.getRole(id)
+            .then(setData)
+            .catch(() => setError("Error al cargar el rol."))
+            .finally(() => setLoading(false));
+    }, [id, enabled]);
+
+    return { data, loading, error };
+}
+
 // ─── useCreateRole ────────────────────────────────────────────────────────────
 
 export function useCreateRole() {
@@ -131,6 +151,35 @@ export function useStatusRole() {
     return { execute, loading, error };
 }
 
+// ─── useDeleteRole ────────────────────────────────────────────────────────────
+
+export function useDeleteRole() {
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState<string | null>(null);
+
+    const reset = useCallback(() => setError(null), []);
+
+    const execute = useCallback(async (id: number): Promise<boolean> => {
+        setLoading(true);
+        setError(null);
+        try {
+            await RoleService.deleteRole(id);
+            return true;
+        } catch (err) {
+            console.error("[useDeleteRole]", err);
+            const msg =
+                (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+                ?? "Error al eliminar el rol.";
+            setError(msg);
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { execute, loading, error, reset };
+}
+
 // ─── usePermissions ───────────────────────────────────────────────────────────
 
 interface UsePermissionsParams extends Params {
@@ -164,7 +213,7 @@ export function usePermissions({ limit, offset, search, enabled = true }: UsePer
 
 // ─── useAllPermissions ────────────────────────────────────────────────────────
 
-export function useAllPermissions(enabled = true) {
+export function useAllPermissions(enabled = true, search = "") {
     const [data, setData]       = useState<Permission[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState<string | null>(null);
@@ -174,7 +223,7 @@ export function useAllPermissions(enabled = true) {
         setLoading(true);
         setError(null);
         try {
-            const result = await RoleService.getAllPermissions();
+            const result = await RoleService.getAllPermissions(search || undefined);
             setData(result);
         } catch (err) {
             console.error("[useAllPermissions]", err);
@@ -182,7 +231,7 @@ export function useAllPermissions(enabled = true) {
         } finally {
             setLoading(false);
         }
-    }, [enabled]);
+    }, [enabled, search]);
 
     useEffect(() => { load(); }, [load]);
 

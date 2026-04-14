@@ -76,7 +76,7 @@ public class SizeServiceImpl implements SizeService {
     @Override
     @Transactional(readOnly = true)
     public List<SizeDTO> getAllSizes() {
-        return sizeRepository.findAll().stream()
+        return sizeRepository.findAllByIsActiveTrue().stream()
                 .map(this::convertToDTO)
                 .toList();
     }

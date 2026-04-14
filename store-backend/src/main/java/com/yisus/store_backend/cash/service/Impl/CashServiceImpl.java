@@ -141,7 +141,7 @@ public class CashServiceImpl implements CashService {
     @Override
     @Transactional(readOnly = true)
     public List<OutflowReasonDTO> getAllOutflowReasons() {
-        List<OutflowReason> reasons = outflowReasonRepository.findAll();
+        List<OutflowReason> reasons = outflowReasonRepository.findAllByIsActiveTrue();
         return reasons.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());

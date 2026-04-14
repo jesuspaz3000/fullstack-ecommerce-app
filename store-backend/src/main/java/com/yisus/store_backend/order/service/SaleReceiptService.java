@@ -10,6 +10,7 @@ import com.yisus.store_backend.storeconfig.model.StoreConfig;
 import com.yisus.store_backend.storeconfig.service.StoreConfigService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
@@ -43,6 +44,10 @@ public class SaleReceiptService {
     /** Zona horaria para fecha/hora de impresión del recibo (Perú). */
     private static final ZoneId ZONE_IMPRESION = ZoneId.of("America/Lima");
 
+    /** Raíz de subidas (misma propiedad que al guardar el logo en {@code StoreConfigServiceImpl}). */
+    @Value("${file.upload-dir:uploads}")
+    private String fileUploadDir;
+
     private final StoreConfigService storeConfigService;
 
     public byte[] generateReceipt(OrderDTO order) {
@@ -52,14 +57,9 @@ public class SaleReceiptService {
         int itemCount    = order.getOrderItems() != null ? order.getOrderItems().size() : 0;
         int paymentCount = order.getPayments()   != null ? order.getPayments().size()   : 0;
 
-        int addressLines = 0;
-        if (cfg.getStoreAddress() != null && !cfg.getStoreAddress().isBlank()) {
-            for (String line : cfg.getStoreAddress().split("[,\n]")) {
-                if (!line.trim().isEmpty()) {
-                    addressLines++;
-                }
-            }
-        }
+        // Dirección: solo se parte por salto de línea (Enter en config), no por comas.
+        // Estimación de líneas visuales (ticket ~32 caracteres por línea a ~8.5 pt) para la altura de página.
+        int addressVisualLines = countStoreAddressVisualLines(cfg.getStoreAddress());
         ShippingAddressDTO shipForHeight = order.getShippingAddress();
         int buyerLines = 1;
         if (shipForHeight != null) {
@@ -83,9 +83,9 @@ public class SaleReceiptService {
         Image logoImage = tryLoadStoreLogo(cfg.getLogoUrl());
         float logoExtra = logoImage != null ? LOGO_MAX_H_PT + 18f : 0f;
 
-        // Una sola página: altura ≥ contenido. Incluye colchón para spacers del pie (líneas + “Gracias…”) sin segunda página.
-        float pageHeight = 380f + addressLines * 10f + buyerLines * 11f
-                + (itemCount * 34f) + Math.max(paymentCount, 1) * 24f + 145f + logoExtra;
+        // Una sola página: altura ≥ contenido (fuentes más grandes → más alto por fila).
+        float pageHeight = 440f + addressVisualLines * 15f + buyerLines * 14f
+                + (itemCount * 48f) + Math.max(paymentCount, 1) * 32f + 175f + logoExtra;
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             Rectangle pageSize = new Rectangle(PAGE_WIDTH, pageHeight);
@@ -95,14 +95,15 @@ public class SaleReceiptService {
 
             float cw = PAGE_WIDTH - (2 * MARGIN_H);
 
-            Font fStoreLegal = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   8f);
-            Font fDocType    = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   7.5f);
-            Font fDocNum     = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   9.5f);
-            Font fBold       = FontFactory.getFont(FontFactory.HELVETICA_BOLD,    7f);
-            Font fNormal     = FontFactory.getFont(FontFactory.HELVETICA,        6.8f);
-            Font fSmall      = FontFactory.getFont(FontFactory.HELVETICA,        6.3f);
-            Font fItalic     = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 6.3f);
-            Font fTotal      = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   8.5f);
+            // Ticket88 mm: NOTA DE VENTA + dirección tienda comparten fDocType (negrita, tamaño intermedio-alto).
+            Font fStoreLegal = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   11f);
+            Font fDocType    = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   10.5f);
+            Font fDocNum     = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   12f);
+            Font fBold       = FontFactory.getFont(FontFactory.HELVETICA_BOLD,    10.2f);
+            Font fNormal     = FontFactory.getFont(FontFactory.HELVETICA,        9.8f);
+            Font fSmall      = FontFactory.getFont(FontFactory.HELVETICA,        9.4f);
+            Font fItalic     = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 9.6f);
+            Font fTotal      = FontFactory.getFont(FontFactory.HELVETICA_BOLD,   10.5f);
 
             // ── Cabecera: logo (si existe) + nombre de la empresa ───────────
             String storeName = (cfg.getStoreName() != null && !cfg.getStoreName().isBlank())
@@ -117,10 +118,11 @@ public class SaleReceiptService {
             addCentered(document, storeName, fStoreLegal, 2f);
 
             if (cfg.getStoreAddress() != null && !cfg.getStoreAddress().isBlank()) {
-                for (String line : cfg.getStoreAddress().split("[,\n]")) {
+                for (String line : cfg.getStoreAddress().split("\\R")) {
                     String trimmed = line.trim();
                     if (!trimmed.isEmpty()) {
-                        addCentered(document, trimmed, fSmall, 1f);
+                        // Misma fuente que "NOTA DE VENTA" (negrita 10.5 pt).
+                        addCentered(document, trimmed, fDocType, 1f);
                     }
                 }
             }
@@ -177,14 +179,17 @@ public class SaleReceiptService {
             addLine(document, cw);
             addSpacer(document, fSmall);
 
-            // ── Ítems: CANT | DESCRIPCIÓN | TOTAL ────────────────────────────
-            PdfPTable itemTable = new PdfPTable(new float[]{0.85f, 3.5f, 1.15f});
+            // Ítems: columna central ancha para "DESCRIPCIÓN" en una línea; CANT/P.UNIT/TOTAL algo más estrechas.
+            // Valores sin "S/." en celdas; el pie aclara TOTAL (S/).
+            PdfPTable itemTable = new PdfPTable(new float[]{0.92f, 2.28f, 1.02f, 1.02f});
             itemTable.setTotalWidth(cw);
             itemTable.setLockedWidth(true);
 
-            addCell(itemTable, "CANT",      fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), 2f);
-            addCell(itemTable, "DESCRIPCIÓN", fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), 2f);
-            addCell(itemTable, "TOTAL",     fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), 2f);
+            float cellPad = 2.5f;
+            addCell(itemTable, "CANT",        fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), cellPad);
+            addCell(itemTable, "DESCRIPCIÓN", fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), cellPad);
+            addCell(itemTable, "P. UNIT",     fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), cellPad);
+            addCell(itemTable, "TOTAL",       fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), cellPad);
 
             if (order.getOrderItems() != null) {
                 for (OrderItemDTO item : order.getOrderItems()) {
@@ -196,9 +201,10 @@ public class SaleReceiptService {
                         desc += " T:" + item.getSizeName();
                     }
 
-                    addCell(itemTable, String.valueOf(item.getQuantity()), fNormal, Element.ALIGN_CENTER, null, 2f);
-                    addCell(itemTable, desc, fNormal, Element.ALIGN_LEFT, null, 2f);
-                    addCell(itemTable, amountPlain(item.getTotalPrice()), fNormal, Element.ALIGN_RIGHT, null, 2f);
+                    addCell(itemTable, String.valueOf(item.getQuantity()), fNormal, Element.ALIGN_CENTER, null, cellPad);
+                    addCell(itemTable, desc, fNormal, Element.ALIGN_LEFT, null, cellPad);
+                    addCell(itemTable, amountPlain(item.getUnitPrice()), fNormal, Element.ALIGN_RIGHT, null, cellPad);
+                    addCell(itemTable, amountPlain(item.getTotalPrice()), fNormal, Element.ALIGN_RIGHT, null, cellPad);
                 }
             }
             document.add(itemTable);
@@ -219,21 +225,22 @@ public class SaleReceiptService {
             document.add(new Paragraph("FORMAS DE PAGO", fBold));
             addSpacer(document, fSmall);
 
-            PdfPTable payTable = new PdfPTable(new float[]{2.2f, 1.3f});
+            PdfPTable payTable = new PdfPTable(new float[]{2.0f, 1.5f});
             payTable.setTotalWidth(cw);
             payTable.setLockedWidth(true);
 
-            addCell(payTable, "TIPO",  fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), 2f);
-            addCell(payTable, "MONTO", fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), 2f);
+            float payPad = 2.5f;
+            addCell(payTable, "TIPO",  fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), payPad);
+            addCell(payTable, "MONTO", fBold, Element.ALIGN_CENTER, new Color(235, 235, 235), payPad);
 
             if (order.getPayments() != null && !order.getPayments().isEmpty()) {
                 for (PaymentDTO payment : order.getPayments()) {
-                    addCell(payTable, translateMethod(payment.getMethod().name()), fNormal, Element.ALIGN_LEFT, null, 2f);
-                    addCell(payTable, currency(payment.getAmount()), fNormal, Element.ALIGN_RIGHT, null, 2f);
+                    addCell(payTable, translateMethod(payment.getMethod().name()), fNormal, Element.ALIGN_LEFT, null, payPad);
+                    addCell(payTable, amountPlain(payment.getAmount()), fNormal, Element.ALIGN_RIGHT, null, payPad);
                 }
             } else {
-                addCell(payTable, "—", fNormal, Element.ALIGN_LEFT, null, 2f);
-                addCell(payTable, "—", fNormal, Element.ALIGN_RIGHT, null, 2f);
+                addCell(payTable, "—", fNormal, Element.ALIGN_LEFT, null, payPad);
+                addCell(payTable, "—", fNormal, Element.ALIGN_RIGHT, null, payPad);
             }
             document.add(payTable);
 
@@ -254,7 +261,7 @@ public class SaleReceiptService {
             metaBlock.setSpacingBefore(0f);
             metaBlock.setSpacingAfter(0f);
 
-            Phrase leftPh = new Phrase("Usu. reg.: " + registrar, fSmall);
+            Phrase leftPh = new Phrase("Usu. reg.: " + registrar, fNormal);
             PdfPCell userCell = new PdfPCell(leftPh);
             userCell.setBorder(Rectangle.NO_BORDER);
             userCell.setPaddingTop(2.35f);
@@ -265,7 +272,7 @@ public class SaleReceiptService {
             userCell.setVerticalAlignment(Element.ALIGN_TOP);
             metaBlock.addCell(userCell);
 
-            Phrase rightPh = new Phrase(fecHor, fSmall);
+            Phrase rightPh = new Phrase(fecHor, fNormal);
             PdfPCell fechaHoraCell = new PdfPCell(rightPh);
             fechaHoraCell.setBorder(Rectangle.NO_BORDER);
             fechaHoraCell.setPaddingTop(1.5f);
@@ -293,6 +300,28 @@ public class SaleReceiptService {
         } catch (Exception e) {
             throw new RuntimeException("Error generando el recibo PDF", e);
         }
+    }
+
+    /** ~Caracteres por línea en dirección (ticket 88 mm, fuente ~10.5 pt negrita). */
+    private static final int STORE_ADDRESS_CHARS_PER_LINE = 27;
+
+    /**
+     * Cuenta líneas lógicas de la dirección de tienda para reservar altura en el PDF.
+     * Solo separadores {@code \n} / {@code \r\n}; las comas no cortan. Cada bloque puede ocupar varias líneas al ajustar texto.
+     */
+    private static int countStoreAddressVisualLines(String storeAddress) {
+        if (storeAddress == null || storeAddress.isBlank()) {
+            return 0;
+        }
+        int total = 0;
+        for (String line : storeAddress.split("\\R")) {
+            String t = line.trim();
+            if (t.isEmpty()) {
+                continue;
+            }
+            total += Math.max(1, (int) Math.ceil(t.length() / (double) STORE_ADDRESS_CHARS_PER_LINE));
+        }
+        return total;
     }
 
     private static String buildDestinoLine(ShippingAddressDTO ship) {
@@ -356,15 +385,7 @@ public class SaleReceiptService {
         table.addCell(cell);
     }
 
-    /** Monto con símbolo (formas de pago). */
-    private String currency(BigDecimal value) {
-        if (value == null) {
-            return "—";
-        }
-        return String.format("S/. %.2f", value);
-    }
-
-    /** Monto sin símbolo (columna TOTAL de ítems, estilo boleta). */
+    /** Monto sin prefijo (columnas P. UNIT, TOTAL ítems, MONTO pagos); el documento indica soles en TOTAL (S/). */
     private String amountPlain(BigDecimal value) {
         if (value == null) {
             return "—";
@@ -391,7 +412,10 @@ public class SaleReceiptService {
     }
 
     /**
-     * Logo desde disco ({@code /uploads/logos/...}). SVG u otros no soportados se omiten.
+     * Logo desde disco. Solo rutas bajo {@code /uploads/...} relativas a {@link #fileUploadDir}.
+     * SVG u otros no soportados por iText/OpenPDF se omiten.
+     * <p>Impresoras térmicas son monocromo: logos muy claros (dorado, líneas finas) pueden verse en
+     * pantalla pero salir en blanco al imprimir; conviene PNG negro sobre fondo blanco o alto contraste.
      */
     private Image tryLoadStoreLogo(String logoUrl) {
         if (logoUrl == null || logoUrl.isBlank()) {
@@ -402,10 +426,20 @@ public class SaleReceiptService {
             return null;
         }
         try {
-            String relative = trimmed.startsWith("/") ? trimmed.substring(1) : trimmed;
-            Path path = Paths.get(relative).toAbsolutePath().normalize();
+            String insideUploads = trimmed.substring("/uploads/".length());
+            Path uploadRoot = Paths.get(fileUploadDir).toAbsolutePath().normalize();
+            Path path = uploadRoot.resolve(insideUploads).normalize();
+            if (!path.startsWith(uploadRoot)) {
+                log.warn("Ruta de logo fuera del directorio de uploads: {}", path);
+                return null;
+            }
             if (!Files.exists(path) || !Files.isRegularFile(path)) {
-                log.warn("Logo de tienda no encontrado para recibo: {}", path);
+                log.warn(
+                        "Logo no encontrado para recibo: {} (upload-dir={}, user.dir={})",
+                        path,
+                        uploadRoot,
+                        System.getProperty("user.dir")
+                );
                 return null;
             }
             byte[] data = Files.readAllBytes(path);

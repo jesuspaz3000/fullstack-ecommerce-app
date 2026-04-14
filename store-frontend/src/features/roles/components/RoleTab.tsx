@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Alert,
     Box,
@@ -10,7 +10,6 @@ import {
     Paper,
     Skeleton,
     Snackbar,
-    Switch,
     TablePagination,
     Tooltip,
     Typography,
@@ -18,14 +17,18 @@ import {
 import { alpha, useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import DataTable, { TableColumn } from "@/shared/components/DataTable";
 import { compactTablePaginationSx } from "@/shared/mui/compactTablePaginationSx";
 import { ListLayoutMeasurePlaceholder } from "@/shared/components/ListLayoutMeasurePlaceholder";
 import { useNarrowLayoutMd } from "@/shared/hooks/useNarrowLayoutMd";
-import { useRoles, useStatusRole } from "../hooks/rolesHooks";
+import { useHasPermission } from "@/shared/hooks/usePermission";
+import { PERMISSIONS } from "@/shared/config/permissions";
+import { useRoles } from "../hooks/rolesHooks";
 import { Role } from "../types/rolesTypes";
 import CreateRole from "./CreateRole";
 import EditRole from "./EditRole";
+import DeleteRole from "./DeleteRole";
 
 interface RoleTabProps {
     search: string;
@@ -41,12 +44,18 @@ interface SnackbarState {
 
 function RoleMobileCard({
     role,
+    mounted,
+    canUpdate,
+    canDelete,
     onEdit,
-    onToggleStatus,
+    onDelete,
 }: {
     role: Role;
+    mounted: boolean;
+    canUpdate: boolean;
+    canDelete: boolean;
     onEdit: (r: Role) => void;
-    onToggleStatus: (r: Role) => void;
+    onDelete: (r: Role) => void;
 }) {
     const theme = useTheme();
     const accent = theme.palette.primary.main;
@@ -78,20 +87,32 @@ function RoleMobileCard({
                         {role.description || "—"}
                     </Typography>
                 </Box>
-                {role.isActive ? (
-                    <Tooltip title="Editar">
-                        <IconButton
-                            size="small"
-                            onClick={() => onEdit(role)}
-                            aria-label="Editar rol"
-                            sx={{ color: alpha(accent, 0.95), mt: -0.5, mr: -0.75, flexShrink: 0 }}
-                        >
-                            <EditRoundedIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                ) : (
-                    <Box sx={{ width: 36, flexShrink: 0 }} />
-                )}
+                <Box sx={{ display: "flex", gap: 0.5, mt: -0.5, mr: -0.75, flexShrink: 0 }}>
+                    {mounted && canUpdate && (
+                        <Tooltip title="Editar">
+                            <IconButton
+                                size="small"
+                                onClick={() => onEdit(role)}
+                                aria-label="Editar rol"
+                                sx={{ color: alpha(accent, 0.95) }}
+                            >
+                                <EditRoundedIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                    {mounted && canDelete && (
+                        <Tooltip title="Eliminar">
+                            <IconButton
+                                size="small"
+                                onClick={() => onDelete(role)}
+                                aria-label="Eliminar rol"
+                                sx={{ color: "error.main" }}
+                            >
+                                <DeleteRoundedIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                </Box>
             </Box>
 
             <Box
@@ -99,7 +120,6 @@ function RoleMobileCard({
                     display: "flex",
                     flexWrap: "wrap",
                     alignItems: "center",
-                    justifyContent: "space-between",
                     gap: 1,
                     mt: 2,
                     pt: 2,
@@ -129,34 +149,6 @@ function RoleMobileCard({
                         "& .MuiChip-label": { px: 1.5, py: 0 },
                     }}
                 />
-                <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                    <Tooltip title={role.isActive ? "Desactivar" : "Activar"}>
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 0.5,
-                                cursor: "pointer",
-                            }}
-                            onClick={() => onToggleStatus(role)}
-                        >
-                            <Switch
-                                checked={role.isActive}
-                                size="small"
-                                color="success"
-                                onChange={() => onToggleStatus(role)}
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                            <Typography
-                                variant="caption"
-                                color={role.isActive ? "success.main" : "text.secondary"}
-                                sx={{ fontSize: "0.7rem", whiteSpace: "nowrap" }}
-                            >
-                                {role.isActive ? "Activo" : "Inactivo"}
-                            </Typography>
-                        </Box>
-                    </Tooltip>
-                </Box>
             </Box>
         </Paper>
     );
@@ -167,36 +159,32 @@ export default function RoleTab({ search, createOpen, onCreateClose }: RoleTabPr
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [selectedRole, setSelectedRole] = useState<Role | null>(null);
     const [editOpen, setEditOpen]         = useState(false);
+    const [deleteOpen, setDeleteOpen]     = useState(false);
     const [snackbar, setSnackbar]         = useState<SnackbarState>({ open: false, message: "", severity: "success" });
+    const [mounted, setMounted]           = useState(false);
+    useEffect(() => setMounted(true), []);
 
     const theme = useTheme();
     const { ready: layoutReady, isNarrow: isNarrowLayout } = useNarrowLayoutMd();
     const isShortLabel = useMediaQuery(theme.breakpoints.down("sm"));
 
-    const { data, loading, refetch, updateRow } = useRoles({
+    const canUpdate = useHasPermission(PERMISSIONS.ROLES.UPDATE);
+    const canDelete = useHasPermission(PERMISSIONS.ROLES.DELETE);
+
+    const { data, loading, refetch } = useRoles({
         limit: rowsPerPage,
         offset: page * rowsPerPage,
         search: search || undefined,
     });
 
-    const { execute: statusRole } = useStatusRole();
+    // Reset to page 0 when search changes
+    useEffect(() => { setPage(0); }, [search]);
 
     const showSnackbar = (message: string, severity: "success" | "error" = "success") =>
         setSnackbar({ open: true, message, severity });
 
-    const handleEdit = (role: Role) => { setSelectedRole(role); setEditOpen(true); };
-
-    const handleToggleStatus = async (role: Role) => {
-        const newStatus = !role.isActive;
-        updateRow(role.id, { isActive: newStatus });
-        const result = await statusRole(role.id, newStatus);
-        if (result) {
-            showSnackbar(newStatus ? "Rol activado exitosamente." : "Rol desactivado exitosamente.");
-        } else {
-            updateRow(role.id, { isActive: role.isActive });
-            showSnackbar("Error al cambiar el estado del rol.", "error");
-        }
-    };
+    const handleEdit   = (role: Role) => { setSelectedRole(role); setEditOpen(true); };
+    const handleDelete = (role: Role) => { setSelectedRole(role); setDeleteOpen(true); };
 
     const columns: TableColumn<Role>[] = [
         {
@@ -215,43 +203,27 @@ export default function RoleTab({ search, createOpen, onCreateClose }: RoleTabPr
             ),
         },
         {
-            key: "isActive",
-            label: "Estado",
-            width: 130,
-            align: "center",
-            render: (row) => (
-                <Tooltip title={row.isActive ? "Desactivar" : "Activar"}>
-                    <Box
-                        sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5, cursor: "pointer" }}
-                        onClick={() => handleToggleStatus(row)}
-                    >
-                        <Switch
-                            checked={row.isActive}
-                            size="small"
-                            color="success"
-                            onChange={() => handleToggleStatus(row)}
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                        <Typography variant="caption" color={row.isActive ? "success.main" : "text.secondary"}>
-                            {row.isActive ? "Activo" : "Inactivo"}
-                        </Typography>
-                    </Box>
-                </Tooltip>
-            ),
-        },
-        {
             key: "actions",
             label: "Acciones",
-            width: 80,
+            width: 100,
             align: "center",
             render: (row) => (
-                row.isActive ? (
-                    <Tooltip title="Editar">
-                        <IconButton size="small" onClick={() => handleEdit(row)}>
-                            <EditRoundedIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                ) : null
+                <Box sx={{ display: "flex", justifyContent: "center", gap: 0.5 }}>
+                    {mounted && canUpdate && (
+                        <Tooltip title="Editar">
+                            <IconButton size="small" onClick={() => handleEdit(row)}>
+                                <EditRoundedIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                    {mounted && canDelete && (
+                        <Tooltip title="Eliminar">
+                            <IconButton size="small" onClick={() => handleDelete(row)} sx={{ color: "error.main" }}>
+                                <DeleteRoundedIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                </Box>
             ),
         },
     ];
@@ -277,7 +249,7 @@ export default function RoleTab({ search, createOpen, onCreateClose }: RoleTabPr
                         {loading ? (
                             Array.from({ length: rowsPerPage }).map((_, i) => (
                                 <Grid key={i} size={{ xs: 12, sm: 6 }}>
-                                    <Skeleton variant="rounded" height={148} sx={{ borderRadius: 2 }} />
+                                    <Skeleton variant="rounded" height={120} sx={{ borderRadius: 2 }} />
                                 </Grid>
                             ))
                         ) : (data?.results ?? []).length === 0 ? (
@@ -293,8 +265,11 @@ export default function RoleTab({ search, createOpen, onCreateClose }: RoleTabPr
                                 <Grid key={row.id} size={{ xs: 12, sm: 6 }}>
                                     <RoleMobileCard
                                         role={row}
+                                        mounted={mounted}
+                                        canUpdate={canUpdate}
+                                        canDelete={canDelete}
                                         onEdit={handleEdit}
-                                        onToggleStatus={handleToggleStatus}
+                                        onDelete={handleDelete}
                                     />
                                 </Grid>
                             ))
@@ -343,6 +318,12 @@ export default function RoleTab({ search, createOpen, onCreateClose }: RoleTabPr
                 role={selectedRole}
                 onClose={() => setEditOpen(false)}
                 onSuccess={() => { refetch(); showSnackbar("Rol actualizado exitosamente."); }}
+            />
+            <DeleteRole
+                open={deleteOpen}
+                role={selectedRole}
+                onClose={() => setDeleteOpen(false)}
+                onSuccess={() => { refetch(); showSnackbar("Rol eliminado exitosamente."); }}
             />
 
             <Snackbar

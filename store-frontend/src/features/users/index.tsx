@@ -12,7 +12,6 @@ import {
     Paper,
     Skeleton,
     Snackbar,
-    Switch,
     TablePagination,
     TextField,
     Tooltip,
@@ -23,6 +22,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
+import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import Grid from "@mui/material/Grid";
 import { compactTablePaginationSx } from "@/shared/mui/compactTablePaginationSx";
 import DataTable, { TableColumn } from "@/shared/components/DataTable";
@@ -30,10 +30,12 @@ import { ListLayoutMeasurePlaceholder } from "@/shared/components/ListLayoutMeas
 import { useNarrowLayoutMd } from "@/shared/hooks/useNarrowLayoutMd";
 import { useHasPermission } from "@/shared/hooks/usePermission";
 import { PERMISSIONS } from "@/shared/config/permissions";
-import { useUsers, useStatusUser } from "./hooks/usersHooks";
+import { useAuthStore } from "@/store/auth.store";
+import { useUsers } from "./hooks/usersHooks";
 import { User } from "./types/usersTypes";
 import CreateUser from "./components/CreateUser";
 import EditUser from "./components/EditUser";
+import DeleteUser from "./components/DeleteUser";
 import { toMediaUrl } from "@/shared/utils/mediaUrl";
 
 function UserMobileCard({
@@ -41,15 +43,17 @@ function UserMobileCard({
     mounted,
     canUpdate,
     canDelete,
+    isSelf,
     onEdit,
-    onToggleStatus,
+    onDelete,
 }: {
     user: User;
     mounted: boolean;
     canUpdate: boolean;
     canDelete: boolean;
+    isSelf: boolean;
     onEdit: (u: User) => void;
-    onToggleStatus: (u: User) => void;
+    onDelete: (u: User) => void;
 }) {
     const theme = useTheme();
     const src = toMediaUrl(user.avatarUrl) || undefined;
@@ -96,20 +100,32 @@ function UserMobileCard({
                         {user.email}
                     </Typography>
                 </Box>
-                {mounted && canUpdate && user.isActive ? (
-                    <Tooltip title="Editar">
-                        <IconButton
-                            size="small"
-                            onClick={() => onEdit(user)}
-                            aria-label="Editar usuario"
-                            sx={{ color: alpha(accent, 0.95), mt: -0.5, mr: -0.75, flexShrink: 0 }}
-                        >
-                            <EditRoundedIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                ) : (
-                    <Box sx={{ width: 36, flexShrink: 0 }} />
-                )}
+                <Box sx={{ display: "flex", gap: 0.5, mt: -0.5, mr: -0.75, flexShrink: 0 }}>
+                    {mounted && canUpdate && (
+                        <Tooltip title="Editar">
+                            <IconButton
+                                size="small"
+                                onClick={() => onEdit(user)}
+                                aria-label="Editar usuario"
+                                sx={{ color: alpha(accent, 0.95) }}
+                            >
+                                <EditRoundedIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                    {mounted && canDelete && !isSelf && (
+                        <Tooltip title="Eliminar">
+                            <IconButton
+                                size="small"
+                                onClick={() => onDelete(user)}
+                                aria-label="Eliminar usuario"
+                                sx={{ color: "error.main" }}
+                            >
+                                <DeleteRoundedIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                </Box>
             </Box>
 
             <Box
@@ -117,7 +133,6 @@ function UserMobileCard({
                     display: "flex",
                     flexWrap: "wrap",
                     alignItems: "center",
-                    justifyContent: "space-between",
                     gap: 1,
                     mt: 2,
                     pt: 2,
@@ -164,42 +179,6 @@ function UserMobileCard({
                         "& .MuiChip-label": { px: 1.5, py: 0 },
                     }}
                 />
-                <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                    {mounted && canDelete ? (
-                        <Tooltip title={user.isActive ? "Desactivar" : "Activar"}>
-                            <Box
-                                sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 0.5,
-                                    cursor: "pointer",
-                                }}
-                                onClick={() => onToggleStatus(user)}
-                            >
-                                <Switch
-                                    checked={user.isActive}
-                                    size="small"
-                                    color="success"
-                                    onChange={() => onToggleStatus(user)}
-                                    onClick={(e) => e.stopPropagation()}
-                                />
-                                <Typography
-                                    variant="caption"
-                                    color={user.isActive ? "success.main" : "text.secondary"}
-                                    sx={{ fontSize: "0.7rem", whiteSpace: "nowrap" }}
-                                >
-                                    {user.isActive ? "Activo" : "Inactivo"}
-                                </Typography>
-                            </Box>
-                        </Tooltip>
-                    ) : (
-                        <Chip
-                            label={user.isActive ? "Activo" : "Inactivo"}
-                            color={user.isActive ? "success" : "default"}
-                            size="small"
-                        />
-                    )}
-                </Box>
             </Box>
         </Paper>
     );
@@ -220,6 +199,7 @@ export default function Users() {
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
     const [createOpen, setCreateOpen]     = useState(false);
     const [editOpen, setEditOpen]         = useState(false);
+    const [deleteOpen, setDeleteOpen]     = useState(false);
     const [snackbar, setSnackbar]         = useState<SnackbarState>({ open: false, message: "", severity: "success" });
 
     const theme = useTheme();
@@ -229,6 +209,7 @@ export default function Users() {
     const canCreate = useHasPermission(PERMISSIONS.USERS.CREATE);
     const canUpdate = useHasPermission(PERMISSIONS.USERS.UPDATE);
     const canDelete = useHasPermission(PERMISSIONS.USERS.DELETE);
+    const currentUserId = useAuthStore((s) => s.user?.id);
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
 
@@ -237,30 +218,17 @@ export default function Users() {
         return () => clearTimeout(timer);
     }, [searchInput]);
 
-    const { data, loading, refetch, updateRow } = useUsers({
+    const { data, loading, refetch } = useUsers({
         limit: rowsPerPage,
         offset: page * rowsPerPage,
         search: debouncedSearch || undefined,
     });
 
-    const { execute: statusUser } = useStatusUser();
-
     const showSnackbar = (message: string, severity: "success" | "error" = "success") =>
         setSnackbar({ open: true, message, severity });
 
     const handleEdit = (user: User) => { setSelectedUser(user); setEditOpen(true); };
-
-    const handleToggleStatus = async (user: User) => {
-        const newStatus = !user.isActive;
-        updateRow(user.id, { isActive: newStatus });
-        const result = await statusUser(Number(user.id), newStatus);
-        if (result) {
-            showSnackbar(newStatus ? "Usuario activado exitosamente." : "Usuario desactivado exitosamente.");
-        } else {
-            updateRow(user.id, { isActive: user.isActive });
-            showSnackbar("Error al cambiar el estado del usuario.", "error");
-        }
-    };
+    const handleDelete = (user: User) => { setSelectedUser(user); setDeleteOpen(true); };
 
     const columns: TableColumn<User>[] = [
         {
@@ -295,51 +263,27 @@ export default function Users() {
             ),
         },
         {
-            key: "isActive",
-            label: "Estado",
-            width: 140,
-            align: "center",
-            render: (row) => (
-                mounted && canDelete ? (
-                    <Tooltip title={row.isActive ? "Desactivar" : "Activar"}>
-                        <Box
-                            sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5, cursor: "pointer" }}
-                            onClick={() => handleToggleStatus(row)}
-                        >
-                            <Switch
-                                checked={row.isActive}
-                                size="small"
-                                color="success"
-                                onChange={() => handleToggleStatus(row)}
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                            <Typography variant="caption" color={row.isActive ? "success.main" : "text.secondary"}>
-                                {row.isActive ? "Activo" : "Inactivo"}
-                            </Typography>
-                        </Box>
-                    </Tooltip>
-                ) : (
-                    <Chip
-                        label={row.isActive ? "Activo" : "Inactivo"}
-                        color={row.isActive ? "success" : "default"}
-                        size="small"
-                    />
-                )
-            ),
-        },
-        {
             key: "actions",
             label: "Acciones",
-            width: 80,
+            width: 100,
             align: "center",
             render: (row) => (
-                mounted && canUpdate && row.isActive ? (
-                    <Tooltip title="Editar">
-                        <IconButton size="small" onClick={() => handleEdit(row)}>
-                            <EditRoundedIcon fontSize="small" />
-                        </IconButton>
-                    </Tooltip>
-                ) : null
+                <Box sx={{ display: "flex", justifyContent: "center", gap: 0.5 }}>
+                    {mounted && canUpdate && (
+                        <Tooltip title="Editar">
+                            <IconButton size="small" onClick={() => handleEdit(row)}>
+                                <EditRoundedIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                    {mounted && canDelete && row.id !== currentUserId && (
+                        <Tooltip title="Eliminar">
+                            <IconButton size="small" onClick={() => handleDelete(row)} sx={{ color: "error.main" }}>
+                                <DeleteRoundedIcon fontSize="small" />
+                            </IconButton>
+                        </Tooltip>
+                    )}
+                </Box>
             ),
         },
     ];
@@ -413,7 +357,7 @@ export default function Users() {
                         {loading ? (
                             Array.from({ length: rowsPerPage }).map((_, i) => (
                                 <Grid key={i} size={{ xs: 12, sm: 6 }}>
-                                    <Skeleton variant="rounded" height={176} sx={{ borderRadius: 2 }} />
+                                    <Skeleton variant="rounded" height={148} sx={{ borderRadius: 2 }} />
                                 </Grid>
                             ))
                         ) : (data?.results ?? []).length === 0 ? (
@@ -432,8 +376,9 @@ export default function Users() {
                                         mounted={mounted}
                                         canUpdate={canUpdate}
                                         canDelete={canDelete}
+                                        isSelf={row.id === currentUserId}
                                         onEdit={handleEdit}
-                                        onToggleStatus={handleToggleStatus}
+                                        onDelete={handleDelete}
                                     />
                                 </Grid>
                             ))
@@ -481,6 +426,12 @@ export default function Users() {
                 user={selectedUser}
                 onClose={() => setEditOpen(false)}
                 onSuccess={() => { refetch(); showSnackbar("Usuario actualizado exitosamente."); }}
+            />
+            <DeleteUser
+                open={deleteOpen}
+                user={selectedUser}
+                onClose={() => setDeleteOpen(false)}
+                onSuccess={() => { refetch(); showSnackbar("Usuario eliminado exitosamente."); }}
             />
 
             <Snackbar

@@ -113,6 +113,30 @@ export function useStatusProduct() {
     return { execute, loading, error };
 }
 
+// ─── useDeleteProduct ──────────────────────────────────────────────────────────
+
+export function useDeleteProduct() {
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState<string | null>(null);
+
+    const execute = useCallback(async (id: number): Promise<boolean> => {
+        setLoading(true);
+        setError(null);
+        try {
+            await ProductService.deleteProduct(id);
+            return true;
+        } catch (err) {
+            console.error("[useDeleteProduct]", err);
+            setError("Error al eliminar el producto.");
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { execute, loading, error };
+}
+
 // ─── useAllColors ──────────────────────────────────────────────────────────────
 
 export function useAllColors(enabled: boolean) {

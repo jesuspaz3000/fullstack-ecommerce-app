@@ -11,7 +11,6 @@ import {
     Paper,
     Skeleton,
     Snackbar,
-    Switch,
     TablePagination,
     TextField,
     Tooltip,
@@ -24,17 +23,19 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
+import DeleteRoundedIcon from "@mui/icons-material/DeleteRounded";
 import { compactTablePaginationSx } from "@/shared/mui/compactTablePaginationSx";
 import DataTable, { TableColumn } from "@/shared/components/DataTable";
 import { ListLayoutMeasurePlaceholder } from "@/shared/components/ListLayoutMeasurePlaceholder";
 import { useNarrowLayoutMd } from "@/shared/hooks/useNarrowLayoutMd";
 import { useHasPermission } from "@/shared/hooks/usePermission";
 import { PERMISSIONS } from "@/shared/config/permissions";
-import { useCategories, useStatusCategory } from "./hooks/categoriesHooks";
+import { useCategories } from "./hooks/categoriesHooks";
 import { Category } from "./types/categoriesTypes";
 import CreateCategories from "./components/CreateCategories";
 import EditCategories from "./components/EditCategories";
 import ViewCategory from "./components/ViewCategory";
+import DeleteCategories from "./components/DeleteCategories";
 
 interface SnackbarState {
     open: boolean;
@@ -50,7 +51,7 @@ function CategoryMobileCard({
     canDelete,
     onView,
     onEdit,
-    onToggleStatus,
+    onDelete,
 }: {
     category: Category;
     mounted: boolean;
@@ -59,7 +60,7 @@ function CategoryMobileCard({
     canDelete: boolean;
     onView: (c: Category) => void;
     onEdit: (c: Category) => void;
-    onToggleStatus: (c: Category) => void;
+    onDelete: (c: Category) => void;
 }) {
     const theme = useTheme();
     const accent = theme.palette.primary.main;
@@ -120,7 +121,7 @@ function CategoryMobileCard({
                                 </IconButton>
                             </Tooltip>
                         )}
-                        {canUpdate && category.isActive && (
+                        {canUpdate && (
                             <Tooltip title="Editar">
                                 <IconButton
                                     size="small"
@@ -129,6 +130,18 @@ function CategoryMobileCard({
                                     sx={{ color: alpha(accent, 0.95) }}
                                 >
                                     <EditRoundedIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        )}
+                        {canDelete && (
+                            <Tooltip title="Eliminar">
+                                <IconButton
+                                    size="small"
+                                    onClick={() => onDelete(category)}
+                                    aria-label="Eliminar categoría"
+                                    sx={{ color: "error.main" }}
+                                >
+                                    <DeleteRoundedIcon fontSize="small" />
                                 </IconButton>
                             </Tooltip>
                         )}
@@ -141,68 +154,31 @@ function CategoryMobileCard({
                     display: "flex",
                     flexWrap: "wrap",
                     alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 1,
+                    gap: 0.75,
                     mt: 2,
                     pt: 2,
                     borderTop: "1px solid",
                     borderColor: "divider",
                 }}
             >
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, alignItems: "center" }}>
-                    <Chip
-                        label={`PRODUCTOS: ${category.productCount ?? 0}`}
-                        size="small"
-                        variant="filled"
-                        sx={metricChipSx}
-                    />
-                    <Chip
-                        label={`VARIANTES: ${category.variantCount ?? 0}`}
-                        size="small"
-                        variant="filled"
-                        sx={metricChipSx}
-                    />
-                    <Chip
-                        label={`STOCK: ${category.totalStock ?? 0}`}
-                        size="small"
-                        variant="filled"
-                        sx={metricChipSx}
-                    />
-                </Box>
-                <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                    {mounted && canDelete ? (
-                        <Tooltip title={category.isActive ? "Desactivar" : "Activar"}>
-                            <Box
-                                sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 0.5,
-                                    cursor: "pointer",
-                                }}
-                                onClick={() => onToggleStatus(category)}
-                            >
-                                <Switch
-                                    checked={category.isActive}
-                                    size="small"
-                                    color="success"
-                                    onChange={() => onToggleStatus(category)}
-                                    onClick={(e) => e.stopPropagation()}
-                                />
-                                <Typography
-                                    variant="caption"
-                                    color={category.isActive ? "success.main" : "text.secondary"}
-                                    sx={{ fontSize: "0.7rem", whiteSpace: "nowrap" }}
-                                >
-                                    {category.isActive ? "Activo" : "Inactivo"}
-                                </Typography>
-                            </Box>
-                        </Tooltip>
-                    ) : (
-                        <Typography variant="caption" color={category.isActive ? "success.main" : "text.secondary"}>
-                            {category.isActive ? "Activo" : "Inactivo"}
-                        </Typography>
-                    )}
-                </Box>
+                <Chip
+                    label={`PRODUCTOS: ${category.productCount ?? 0}`}
+                    size="small"
+                    variant="filled"
+                    sx={metricChipSx}
+                />
+                <Chip
+                    label={`VARIANTES: ${category.variantCount ?? 0}`}
+                    size="small"
+                    variant="filled"
+                    sx={metricChipSx}
+                />
+                <Chip
+                    label={`STOCK: ${category.totalStock ?? 0}`}
+                    size="small"
+                    variant="filled"
+                    sx={metricChipSx}
+                />
             </Box>
         </Paper>
     );
@@ -217,6 +193,7 @@ export default function Categories() {
     const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
     const [createOpen, setCreateOpen]             = useState(false);
     const [editOpen, setEditOpen]                 = useState(false);
+    const [deleteOpen, setDeleteOpen]             = useState(false);
     const [viewOpen, setViewOpen]                 = useState(false);
     const [viewCategoryId, setViewCategoryId]     = useState<number | null>(null);
     const [snackbar, setSnackbar]                 = useState<SnackbarState>({ open: false, message: "", severity: "success" });
@@ -238,34 +215,18 @@ export default function Categories() {
         return () => clearTimeout(timer);
     }, [searchInput]);
 
-    const { data, loading, refetch, updateRow } = useCategories({
+    const { data, loading, refetch } = useCategories({
         limit: rowsPerPage,
         offset: page * rowsPerPage,
         search: debouncedSearch || undefined,
     });
 
-    const { execute: statusCategory } = useStatusCategory();
-
     const showSnackbar = (message: string, severity: "success" | "error" = "success") =>
         setSnackbar({ open: true, message, severity });
 
-    const handleEdit = (category: Category) => { setSelectedCategory(category); setEditOpen(true); };
-    const handleView = (category: Category) => {
-        setViewCategoryId(category.id);
-        setViewOpen(true);
-    };
-
-    const handleToggleStatus = async (category: Category) => {
-        const newStatus = !category.isActive;
-        updateRow(category.id, { isActive: newStatus });
-        const result = await statusCategory(category.id, newStatus);
-        if (result) {
-            showSnackbar(newStatus ? "Categoría activada exitosamente." : "Categoría desactivada exitosamente.");
-        } else {
-            updateRow(category.id, { isActive: category.isActive });
-            showSnackbar("Error al cambiar el estado de la categoría.", "error");
-        }
-    };
+    const handleEdit   = (category: Category) => { setSelectedCategory(category); setEditOpen(true); };
+    const handleDelete = (category: Category) => { setSelectedCategory(category); setDeleteOpen(true); };
+    const handleView   = (category: Category) => { setViewCategoryId(category.id); setViewOpen(true); };
 
     const columns: TableColumn<Category>[] = [
         {
@@ -296,40 +257,9 @@ export default function Categories() {
             render: (row) => row.totalStock ?? 0,
         },
         {
-            key: "isActive",
-            label: "Estado",
-            width: 140,
-            align: "center",
-            render: (row) => (
-                mounted && canDelete ? (
-                    <Tooltip title={row.isActive ? "Desactivar" : "Activar"}>
-                        <Box
-                            sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5, cursor: "pointer" }}
-                            onClick={() => handleToggleStatus(row)}
-                        >
-                            <Switch
-                                checked={row.isActive}
-                                size="small"
-                                color="success"
-                                onChange={() => handleToggleStatus(row)}
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                            <Typography variant="caption" color={row.isActive ? "success.main" : "text.secondary"}>
-                                {row.isActive ? "Activo" : "Inactivo"}
-                            </Typography>
-                        </Box>
-                    </Tooltip>
-                ) : (
-                    <Typography variant="caption" color={row.isActive ? "success.main" : "text.secondary"}>
-                        {row.isActive ? "Activo" : "Inactivo"}
-                    </Typography>
-                )
-            ),
-        },
-        {
             key: "actions",
             label: "Acciones",
-            width: 120,
+            width: 130,
             align: "center",
             render: (row) => (
                 mounted ? (
@@ -341,10 +271,17 @@ export default function Categories() {
                                 </IconButton>
                             </Tooltip>
                         )}
-                        {canUpdate && row.isActive && (
+                        {canUpdate && (
                             <Tooltip title="Editar">
                                 <IconButton size="small" onClick={() => handleEdit(row)}>
                                     <EditRoundedIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        )}
+                        {canDelete && (
+                            <Tooltip title="Eliminar">
+                                <IconButton size="small" onClick={() => handleDelete(row)} sx={{ color: "error.main" }}>
+                                    <DeleteRoundedIcon fontSize="small" />
                                 </IconButton>
                             </Tooltip>
                         )}
@@ -423,7 +360,7 @@ export default function Categories() {
                         {loading ? (
                             Array.from({ length: rowsPerPage }).map((_, i) => (
                                 <Grid key={i} size={{ xs: 12, sm: 6 }}>
-                                    <Skeleton variant="rounded" height={200} sx={{ borderRadius: 2 }} />
+                                    <Skeleton variant="rounded" height={160} sx={{ borderRadius: 2 }} />
                                 </Grid>
                             ))
                         ) : (data?.results ?? []).length === 0 ? (
@@ -445,7 +382,7 @@ export default function Categories() {
                                         canDelete={canDelete}
                                         onView={handleView}
                                         onEdit={handleEdit}
-                                        onToggleStatus={handleToggleStatus}
+                                        onDelete={handleDelete}
                                     />
                                 </Grid>
                             ))
@@ -494,6 +431,12 @@ export default function Categories() {
                 category={selectedCategory}
                 onClose={() => setEditOpen(false)}
                 onSuccess={() => { refetch(); showSnackbar("Categoría actualizada exitosamente."); }}
+            />
+            <DeleteCategories
+                open={deleteOpen}
+                category={selectedCategory}
+                onClose={() => setDeleteOpen(false)}
+                onSuccess={() => { refetch(); showSnackbar("Categoría eliminada exitosamente."); }}
             />
             <ViewCategory
                 open={viewOpen}

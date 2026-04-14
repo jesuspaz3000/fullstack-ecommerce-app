@@ -15,24 +15,24 @@ import {
     adminFormDialogPaperSx,
     adminFormDialogTitleRowSx,
 } from "@/shared/mui/adminFormDialog";
-import { useDeleteUser } from "../hooks/usersHooks";
-import { User } from "../types/usersTypes";
+import { useDeleteProduct } from "../hooks/productsHooks";
+import { Product } from "../types/productsTypes";
 
-interface DeleteUserProps {
+interface DeleteProductProps {
     open: boolean;
-    user: User | null;
+    product: Product | null;
     onClose: () => void;
     onSuccess: () => void;
 }
 
-export default function DeleteUser({ open, user, onClose, onSuccess }: DeleteUserProps) {
-    const { execute: deleteUser, loading } = useDeleteUser();
+export default function DeleteProduct({ open, product, onClose, onSuccess }: DeleteProductProps) {
+    const { execute: deleteProduct, loading } = useDeleteProduct();
 
     const handleClose = () => { (document.activeElement as HTMLElement)?.blur(); onClose(); };
 
     const handleConfirm = async () => {
-        if (!user) return;
-        const ok = await deleteUser(Number(user.id));
+        if (!product) return;
+        const ok = await deleteProduct(product.id);
         if (ok) { onSuccess(); handleClose(); }
     };
 
@@ -48,7 +48,7 @@ export default function DeleteUser({ open, user, onClose, onSuccess }: DeleteUse
         >
             <DialogTitle sx={adminFormDialogTitleRowSx}>
                 <Typography component="span" fontWeight={700} sx={{ fontSize: { xs: "1rem", sm: "1.25rem" }, pr: 1 }}>
-                    Eliminar usuario
+                    Eliminar producto
                 </Typography>
                 <IconButton size="small" onClick={handleClose} disabled={loading} aria-label="Cerrar">
                     <CloseRoundedIcon fontSize="small" />
@@ -57,9 +57,9 @@ export default function DeleteUser({ open, user, onClose, onSuccess }: DeleteUse
 
             <DialogContent sx={{ pt: 2, pb: 1 }}>
                 <Typography variant="body2" color="text.secondary">
-                    ¿Estás seguro de que deseas eliminar al usuario{" "}
+                    ¿Estás seguro de que deseas eliminar el producto{" "}
                     <Typography component="span" fontWeight={700} color="text.primary">
-                        {user?.name}
+                        {product?.name}
                     </Typography>
                     ? Esta acción no se puede deshacer.
                 </Typography>

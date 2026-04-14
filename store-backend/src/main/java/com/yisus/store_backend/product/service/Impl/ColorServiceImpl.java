@@ -81,7 +81,7 @@ public class ColorServiceImpl implements ColorService {
     @Override
     @Transactional(readOnly = true)
     public List<ColorDTO> getAllColors() {
-        return colorRepository.findAll().stream()
+        return colorRepository.findAllByIsActiveTrue().stream()
                 .map(this::convertToDTO)
                 .toList();
     }

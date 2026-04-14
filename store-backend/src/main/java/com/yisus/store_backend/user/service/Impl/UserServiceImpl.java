@@ -266,6 +266,16 @@ public class UserServiceImpl implements UserService{
         log.info("Password changed for user id: {}", userId);
     }
 
+    @Override
+    @Transactional
+    public void adminChangePassword(Long userId, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password reset by admin for user: {}", user.getEmail());
+    }
+
     public UserDTO mapToDTO(User user){
         List<String> permissions = user.getRole() != null
                 ? user.getRole().getPermissions().stream()

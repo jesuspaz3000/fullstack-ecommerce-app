@@ -26,4 +26,7 @@ export const CategoryService = {
         const response = await ApiService.get<Category[]>("/categories");
         return response.data;
     },
+    deleteCategory: async (id: number): Promise<void> => {
+        await ApiService.delete(`/categories/${id}`);
+    },
 }

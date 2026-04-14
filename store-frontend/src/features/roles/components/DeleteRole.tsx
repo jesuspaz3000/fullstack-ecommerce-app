@@ -17,33 +17,32 @@ import {
     adminFormDialogPaperSx,
     adminFormDialogTitleRowSx,
 } from "@/shared/mui/adminFormDialog";
-import { useDeleteCategory } from "../hooks/categoriesHooks";
-import { Category } from "../types/categoriesTypes";
+import { useDeleteRole } from "../hooks/rolesHooks";
+import { Role } from "../types/rolesTypes";
 
-interface DeleteCategoriesProps {
+interface DeleteRoleProps {
     open: boolean;
-    category: Category | null;
+    role: Role | null;
     onClose: () => void;
     onSuccess: () => void;
 }
 
-export default function DeleteCategories({ open, category, onClose, onSuccess }: DeleteCategoriesProps) {
-    const { execute: deleteCategory, loading, error, reset } = useDeleteCategory();
+export default function DeleteRole({ open, role, onClose, onSuccess }: DeleteRoleProps) {
+    const { execute: deleteRole, loading, error, reset } = useDeleteRole();
 
-    // Limpiar el error cada vez que se abre el dialog o cambia la categoría
+    // Limpiar el error cada vez que se abre el dialog o cambia el rol
     useEffect(() => {
         if (open) reset();
-    }, [open, category?.id, reset]);
+    }, [open, role?.id, reset]);
 
     const handleClose = () => { (document.activeElement as HTMLElement)?.blur(); onClose(); };
 
     const handleConfirm = async () => {
-        if (!category) return;
-        const ok = await deleteCategory(category.id);
+        if (!role) return;
+        const ok = await deleteRole(role.id);
         if (ok) { onSuccess(); handleClose(); }
     };
 
-    // Si el backend rechazó la eliminación, ya no tiene sentido mostrar el botón Eliminar
     const canDelete = !error;
 
     return (
@@ -58,23 +57,23 @@ export default function DeleteCategories({ open, category, onClose, onSuccess }:
         >
             <DialogTitle sx={adminFormDialogTitleRowSx}>
                 <Typography component="span" fontWeight={700} sx={{ fontSize: { xs: "1rem", sm: "1.25rem" }, pr: 1 }}>
-                    Eliminar categoría
+                    Eliminar rol
                 </Typography>
                 <IconButton size="small" onClick={handleClose} disabled={loading} aria-label="Cerrar">
                     <CloseRoundedIcon fontSize="small" />
                 </IconButton>
             </DialogTitle>
 
-            <DialogContent sx={{ pt: 2, pb: 1, display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <DialogContent sx={{ pt: 2, pb: 1 }}>
                 {error ? (
                     <Alert severity="error" sx={{ fontSize: "0.8rem" }}>
                         {error}
                     </Alert>
                 ) : (
                     <Typography variant="body2" color="text.secondary">
-                        ¿Estás seguro de que deseas eliminar la categoría{" "}
+                        ¿Estás seguro de que deseas eliminar el rol{" "}
                         <Typography component="span" fontWeight={700} color="text.primary">
-                            {category?.name}
+                            {role?.name}
                         </Typography>
                         ? Esta acción no se puede deshacer.
                     </Typography>

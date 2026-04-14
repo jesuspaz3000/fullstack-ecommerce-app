@@ -80,6 +80,15 @@ interface Props {
 
 type FormErrors = Record<string, string>;
 
+/** Bloquea teclas que permiten valores negativos o notación científica en inputs numéricos */
+const blockNegativeKeys = (e: React.KeyboardEvent) => {
+    if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault();
+};
+/** Igual que blockNegativeKeys pero también bloquea el punto (para campos enteros) */
+const blockNonIntegerKeys = (e: React.KeyboardEvent) => {
+    if (["-", "e", "E", "+", "."].includes(e.key)) e.preventDefault();
+};
+
 function SectionTitle({ children, sx }: { children: React.ReactNode; sx?: object }) {
     return (
         <Typography
@@ -732,6 +741,7 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                         label="Stock mínimo"
                                         value={minStock}
                                         onChange={(e) => setMinStock(e.target.value)}
+                                        onKeyDown={blockNonIntegerKeys}
                                         size="small"
                                         required
                                         type="number"
@@ -743,6 +753,7 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                             "Alerta cuando el inventario total del producto esté bajo este umbral."
                                         }
                                         slotProps={{
+                                            htmlInput: { min: 0 },
                                             formHelperText: {
                                                 sx: !errors.minStock && minStockWarning ? { color: "warning.main" } : {},
                                             },
@@ -776,6 +787,7 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                             label="Precio de compra"
                                             value={purchasePrice}
                                             onChange={(e) => setPurchasePrice(e.target.value)}
+                                            onKeyDown={blockNegativeKeys}
                                             fullWidth
                                             size="small"
                                             required
@@ -784,6 +796,7 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                                 input: {
                                                     startAdornment: <InputAdornment position="start">S/</InputAdornment>,
                                                 },
+                                                htmlInput: { min: 0.01, step: 0.01 },
                                             }}
                                             error={!!errors.purchasePrice}
                                             helperText={errors.purchasePrice}
@@ -792,6 +805,7 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                             label="Precio de venta"
                                             value={salePrice}
                                             onChange={(e) => setSalePrice(e.target.value)}
+                                            onKeyDown={blockNegativeKeys}
                                             fullWidth
                                             size="small"
                                             required
@@ -800,6 +814,7 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                                 input: {
                                                     startAdornment: <InputAdornment position="start">S/</InputAdornment>,
                                                 },
+                                                htmlInput: { min: 0.01, step: 0.01 },
                                             }}
                                             error={!!errors.salePrice}
                                             helperText={errors.salePrice}
@@ -1015,9 +1030,11 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                             label="Stock"
                                             value={edit.stock}
                                             onChange={(e) => setVEdit(v.id, { stock: e.target.value })}
+                                            onKeyDown={blockNonIntegerKeys}
                                             size="small"
                                             type="number"
                                             sx={{ width: { xs: "100%", sm: 130 } }}
+                                            slotProps={{ htmlInput: { min: 0 } }}
                                         />
                                         <TextField
                                             label="Stock mínimo (variante)"
@@ -1331,9 +1348,11 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                             label="Stock inicial"
                                             value={vd.stock}
                                             onChange={(e) => setDraft(vd.rowId, { stock: e.target.value })}
+                                            onKeyDown={blockNonIntegerKeys}
                                             size="small"
                                             type="number"
                                             sx={{ width: { xs: "100%", sm: 140 } }}
+                                            slotProps={{ htmlInput: { min: 0 } }}
                                             error={!!errors[`${ep}_stock`]}
                                             helperText={errors[`${ep}_stock`]}
                                         />

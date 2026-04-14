@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: store-postgres
+    environment:
+      POSTGRES_DB: store_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - store-network
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: store-redis
+    networks:
+      - store-network
+    restart: always
+
+  backend:
+    build: ./store-backend
+    container_name: store-backend
+    environment:
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/store_db
+      SPRINGDOC_ENABLED: ${SPRINGDOC_ENABLED}
+      JPA_SHOW_SQL: ${JPA_SHOW_SQL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+    volumes:
+      - ./store-backend/uploads:/app/uploads
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - store-network
+    restart: always
+
+  frontend:
+    build: ./store-frontend
+    container_name: store-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - store-network
+    restart: always
+
+volumes:
+  postgres_data:
+
+networks:
+  store-network:
+    driver: bridge

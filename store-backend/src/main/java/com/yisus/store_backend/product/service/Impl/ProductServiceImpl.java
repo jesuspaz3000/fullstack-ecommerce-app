@@ -137,6 +137,25 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
+    public void deleteProduct(Long id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found"));
+
+        // Desactivar todas las variantes del producto para evitar variantes huérfanas
+        List<ProductVariant> variants = productVariantRepository.findByProductId(id);
+        if (!variants.isEmpty()) {
+            variants.forEach(v -> v.setIsActive(false));
+            productVariantRepository.saveAll(variants);
+            log.info("Deactivated {} variant(s) for product '{}'", variants.size(), product.getName());
+        }
+
+        product.setIsActive(false);
+        productRepository.save(product);
+        log.info("Product '{}' deleted (deactivated) successfully", product.getName());
+    }
+
+    @Override
+    @Transactional
     public void updateProductStatus(Long id, Boolean productUpdateStatusDTO) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
@@ -156,7 +175,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public List<ProductDTO> getAllProducts(String search) {
         if(search == null || search.trim().isEmpty()){
-            return productRepository.findAll().stream()
+            return productRepository.findAllByIsActiveTrue().stream()
                     .map(this::convertToDTO)
                     .toList();
         }
@@ -167,7 +186,7 @@ public class ProductServiceImpl implements ProductService {
     @Transactional(readOnly = true)
     public Page<ProductDTO> getAllProductsPaginated(String search, Pageable pageable) {
         if (search == null || search.trim().isEmpty()) {
-            return productRepository.findAll(pageable).map(this::convertToDTO);
+            return productRepository.findAllByIsActiveTrue(pageable).map(this::convertToDTO);
         } else {
             return productRepository.findBySearch(search, pageable).map(this::convertToDTO);
         }
@@ -175,7 +194,7 @@ public class ProductServiceImpl implements ProductService {
 
     private ProductDTO convertToDTO(Product product) {
         // Cargar variantes del producto con sus imágenes
-        List<ProductVariant> variants = productVariantRepository.findByProductId(product.getId());
+        List<ProductVariant> variants = productVariantRepository.findActiveByProductId(product.getId());
         
         List<ProductVariantDTO> variantDTOs = variants.stream()
                 .map(this::convertVariantToDTO)

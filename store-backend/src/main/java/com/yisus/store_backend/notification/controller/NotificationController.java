@@ -1,6 +1,5 @@
 package com.yisus.store_backend.notification.controller;
 
-import com.yisus.store_backend.notification.dto.CreateNotificationDTO;
 import com.yisus.store_backend.notification.dto.NotificationDTO;
 import com.yisus.store_backend.notification.service.NotificationService;
 import com.yisus.store_backend.notification.sse.NotificationSseRegistry;
@@ -8,7 +7,6 @@ import com.yisus.store_backend.user.model.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
@@ -103,19 +101,6 @@ public class NotificationController {
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
         notificationService.deleteNotification(id, userId(auth));
         return ResponseEntity.noContent().build();
-    }
-
-    /** Solo SUPERADMIN puede crear notificaciones manualmente. */
-    @PostMapping
-    @PreAuthorize("hasRole('SUPERADMIN')")
-    @Operation(summary = "Crear notificación (SUPERADMIN)")
-    public ResponseEntity<NotificationDTO> create(@Valid @RequestBody CreateNotificationDTO dto) {
-        if (dto.getUserId() != null) {
-            return ResponseEntity.ok(
-                    notificationService.createForUser(dto.getUserId(), dto.getTitle(), dto.getMessage(), dto.getType(), dto.getLink()));
-        }
-        notificationService.createForAllUsers(dto.getTitle(), dto.getMessage(), dto.getType(), dto.getLink());
-        return ResponseEntity.ok().build();
     }
 
     private Long userId(Authentication auth) {

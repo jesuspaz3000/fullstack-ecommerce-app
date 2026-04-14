@@ -33,6 +33,10 @@ const PERMISSION_LABELS_ES: Record<string, PermEntry> = {
         label: "Eliminar usuarios",
         description: "Permite eliminar usuarios del sistema.",
     },
+    "users.change_password": {
+        label: "Cambiar contraseña",
+        description: "Permite restablecer la contraseña de cualquier usuario desde el panel de administración.",
+    },
     "roles.create": {
         label: "Crear roles",
         description: "Permite crear nuevos roles.",

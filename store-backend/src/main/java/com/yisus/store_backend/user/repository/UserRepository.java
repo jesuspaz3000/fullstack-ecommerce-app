@@ -15,6 +15,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
     boolean existsByEmail(String email);
+    long countByRole_IdAndIsActiveTrue(Long roleId);
     
     List<User> findByIsActiveTrue();
 
@@ -22,18 +23,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT DISTINCT u FROM User u JOIN u.role r JOIN r.permissions p WHERE u.isActive = true AND p.name = :permissionName")
     List<User> findActiveByRolePermissionName(@Param("permissionName") String permissionName);
 
-    @Query("SELECT u FROM User u WHERE u.role.name != 'SUPERADMIN'")
+    @Query("SELECT u FROM User u WHERE u.role.name != 'SUPERADMIN' AND u.isActive = true")
     List<User> findAllWithoutSuperAdmin();
-    
-    @Query("SELECT u FROM User u WHERE u.role.name != 'SUPERADMIN' AND " +
+
+    @Query("SELECT u FROM User u WHERE u.role.name != 'SUPERADMIN' AND u.isActive = true AND " +
            "(LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
     List<User> findBySearchWithoutSuperAdmin(@Param("search") String search);
-    
-    @Query("SELECT u FROM User u WHERE u.role.name != 'SUPERADMIN'")
+
+    @Query("SELECT u FROM User u WHERE u.role.name != 'SUPERADMIN' AND u.isActive = true")
     Page<User> findAllWithoutSuperAdmin(Pageable pageable);
-    
-    @Query("SELECT u FROM User u WHERE u.role.name != 'SUPERADMIN' AND " +
+
+    @Query("SELECT u FROM User u WHERE u.role.name != 'SUPERADMIN' AND u.isActive = true AND " +
            "(LOWER(u.name) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
            "LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<User> findBySearchWithoutSuperAdmin(@Param("search") String search, Pageable pageable);

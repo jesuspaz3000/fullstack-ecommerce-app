@@ -55,6 +55,15 @@ interface Props {
 
 type FormErrors = Record<string, string>;
 
+/** Bloquea teclas que permiten valores negativos o notación científica en inputs numéricos */
+const blockNegativeKeys = (e: React.KeyboardEvent) => {
+    if (["-", "e", "E", "+"].includes(e.key)) e.preventDefault();
+};
+/** Igual que blockNegativeKeys pero también bloquea el punto (para campos enteros) */
+const blockNonIntegerKeys = (e: React.KeyboardEvent) => {
+    if (["-", "e", "E", "+", "."].includes(e.key)) e.preventDefault();
+};
+
 function SectionTitle({ children, sx }: { children: React.ReactNode; sx?: object }) {
     return (
         <Typography
@@ -107,7 +116,7 @@ function emptyVariant(): VariantDraft {
         showNewSize: false,
         newSizeName: "",
         stock: "",
-        minStock: "5",
+        minStock: "",
         sku: "",
         imageFiles: [],
         imagePreviews: [],
@@ -410,6 +419,7 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                                 label="Stock mínimo"
                                 value={minStock}
                                 onChange={(e) => setMinStock(e.target.value)}
+                                onKeyDown={blockNonIntegerKeys}
                                 size="small"
                                 required
                                 type="number"
@@ -417,6 +427,7 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                                 error={!!errors.minStock}
                                 helperText={errors.minStock ?? minStockWarning ?? "Alerta cuando el inventario total del producto esté bajo este umbral."}
                                 slotProps={{
+                                    htmlInput: { min: 0 },
                                     formHelperText: {
                                         sx: !errors.minStock && minStockWarning ? { color: "warning.main" } : {},
                                     },
@@ -449,6 +460,7 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                                     label="Precio de compra"
                                     value={purchasePrice}
                                     onChange={(e) => setPurchasePrice(e.target.value)}
+                                    onKeyDown={blockNegativeKeys}
                                     fullWidth
                                     size="small"
                                     required
@@ -457,6 +469,7 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                                         input: {
                                             startAdornment: <InputAdornment position="start">S/</InputAdornment>,
                                         },
+                                        htmlInput: { min: 0.01, step: 0.01 },
                                     }}
                                     error={!!errors.purchasePrice}
                                     helperText={errors.purchasePrice}
@@ -465,6 +478,7 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                                     label="Precio de venta"
                                     value={salePrice}
                                     onChange={(e) => setSalePrice(e.target.value)}
+                                    onKeyDown={blockNegativeKeys}
                                     fullWidth
                                     size="small"
                                     required
@@ -473,6 +487,7 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                                         input: {
                                             startAdornment: <InputAdornment position="start">S/</InputAdornment>,
                                         },
+                                        htmlInput: { min: 0.01, step: 0.01 },
                                     }}
                                     error={!!errors.salePrice}
                                     helperText={errors.salePrice}
@@ -680,10 +695,12 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                                     label="Stock inicial"
                                     value={vd.stock}
                                     onChange={(e) => setV(vd.rowId, { stock: e.target.value })}
+                                    onKeyDown={blockNonIntegerKeys}
                                     size="small"
                                     required
                                     type="number"
                                     sx={{ width: { xs: "100%", sm: 140 } }}
+                                    slotProps={{ htmlInput: { min: 0 } }}
                                     error={!!errors[`${ep}_stock`]}
                                     helperText={errors[`${ep}_stock`]}
                                 />
@@ -691,10 +708,11 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                                     label="Stock mínimo (variante)"
                                     value={vd.minStock}
                                     onChange={(e) => setV(vd.rowId, { minStock: e.target.value })}
+                                    onKeyDown={blockNonIntegerKeys}
                                     size="small"
                                     type="number"
                                     sx={{ width: { xs: "100%", sm: 160 } }}
-                                    slotProps={{ htmlInput: { min: 1 } }}
+                                    slotProps={{ htmlInput: { min: 0 } }}
                                     helperText="Alerta por variante"
                                 />
                                 <TextField

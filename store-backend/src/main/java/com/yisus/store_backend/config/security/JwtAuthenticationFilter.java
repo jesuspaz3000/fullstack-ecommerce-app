@@ -35,6 +35,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
     private final TokenBlacklistService tokenBlacklistService;
 
+    /**
+     * Excluir rutas de /auth/** del filtro JWT.
+     * Aunque SecurityConfig marca /auth/** como permitAll(), el filtro se ejecuta
+     * antes y puede bloquear (con 401) una solicitud a /auth/refresh-token cuando
+     * el access_token en cookie está adulterado, impidiendo que el refresh funcione.
+     */
+    /** Rutas de /auth que NO necesitan que el filtro JWT procese el token. */
+    private static final java.util.Set<String> JWT_SKIP_PATHS = java.util.Set.of(
+            "/auth/login",
+            "/auth/register",
+            "/auth/logout",
+            "/auth/refresh-token"
+    );
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return JWT_SKIP_PATHS.contains(request.getServletPath());
+    }
+
     @Override
     @NullMarked
     protected void doFilterInternal(

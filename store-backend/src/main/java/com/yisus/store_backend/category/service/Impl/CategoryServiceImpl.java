@@ -70,9 +70,28 @@ public class CategoryServiceImpl implements CategoryService {
         long catId = refreshed.getId();
         return convertToDTO(
                 refreshed,
-                productRepository.countByCategory_Id(catId),
+                productRepository.countByCategory_IdAndIsActiveTrue(catId),
                 productVariantRepository.countByProductCategoryId(catId),
                 productVariantRepository.sumStockByProductCategoryId(catId));
+    }
+
+    @Override
+    @Transactional
+    public void deleteCategory(Long id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + id));
+
+        long activeProducts = productRepository.countByCategory_IdAndIsActiveTrue(id);
+        if (activeProducts > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar la categoría '" + category.getName() + "' porque tiene " +
+                activeProducts + " producto(s) activo(s) asociado(s). " +
+                "Elimina o reasigna los productos primero.");
+        }
+
+        category.setIsActive(false);
+        categoryRepository.save(category);
+        log.info("Category '{}' deleted (deactivated) successfully", category.getName());
     }
 
     @Override
@@ -92,7 +111,7 @@ public class CategoryServiceImpl implements CategoryService {
         long catId = category.getId();
         return convertToDTO(
                 category,
-                productRepository.countByCategory_Id(catId),
+                productRepository.countByCategory_IdAndIsActiveTrue(catId),
                 productVariantRepository.countByProductCategoryId(catId),
                 productVariantRepository.sumStockByProductCategoryId(catId));
     }
@@ -101,7 +120,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional(readOnly = true)
     public List<CategoryDTO> getAllCategories(String search){
         if(search == null || search.trim().isEmpty()){
-            List<Category> categories = categoryRepository.findAll();
+            List<Category> categories = categoryRepository.findAllByIsActiveTrue();
             List<Long> ids = categories.stream().map(Category::getId).toList();
             Map<Long, Long> productCounts = productCountsByCategoryIds(ids);
             Map<Long, VariantTotals> variantTotals = variantTotalsByCategoryIds(ids);
@@ -136,7 +155,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Transactional(readOnly = true)
     public Page<CategoryDTO> getAllCategoriesPaginated(String search, Pageable pageable) {
         Page<Category> page = (search == null || search.trim().isEmpty())
-                ? categoryRepository.findAll(pageable)
+                ? categoryRepository.findAllByIsActiveTrue(pageable)
                 : categoryRepository.findBySearch(search, pageable);
         List<Long> ids = page.getContent().stream().map(Category::getId).toList();
         Map<Long, Long> productCounts = productCountsByCategoryIds(ids);

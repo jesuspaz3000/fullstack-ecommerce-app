@@ -5,12 +5,8 @@ import {
     Alert,
     Box,
     Button,
-    Checkbox,
-    Divider,
-    FormControlLabel,
     IconButton,
     InputAdornment,
-    Link,
     TextField,
     Typography,
 } from "@mui/material";
@@ -119,21 +115,6 @@ export default function LoginForm() {
                 }}
             />
 
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: -1 }}>
-                <FormControlLabel
-                    control={<Checkbox size="small" />}
-                    label={<Typography variant="body2">Recordarme</Typography>}
-                />
-                <Link
-                    component="button"
-                    type="button"
-                    underline="hover"
-                    variant="body2"
-                    onClick={() => router.push("/coming-soon")}
-                >
-                    ¿Olvidaste tu contraseña?
-                </Link>
-            </Box>
 
             <Button
                 type="submit"
@@ -146,15 +127,6 @@ export default function LoginForm() {
                 Ingresar
             </Button>
 
-            <Divider>
-                <Typography variant="caption" color="text.secondary">
-                    ¿No tienes una cuenta?
-                </Typography>
-            </Divider>
-
-            <Button variant="outlined" size="large" fullWidth onClick={() => router.push("/coming-soon")}>
-                Crear cuenta
-            </Button>
         </Box>
     );
 }

@@ -16,11 +16,15 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     Optional<Category> findByName(String name);
 
-    @Query("SELECT c FROM Category c WHERE " +
+    List<Category> findAllByIsActiveTrue();
+
+    Page<Category> findAllByIsActiveTrue(Pageable pageable);
+
+    @Query("SELECT c FROM Category c WHERE c.isActive = true AND " +
             "LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))")
     List<Category> findBySearch(@Param("search") String search);
 
-    @Query("SELECT c FROM Category c WHERE " +
+    @Query("SELECT c FROM Category c WHERE c.isActive = true AND " +
             "LOWER(c.name) LIKE LOWER(CONCAT('%', :search, '%'))")
     Page<Category> findBySearch(@Param("search") String search, Pageable pageable);
 }

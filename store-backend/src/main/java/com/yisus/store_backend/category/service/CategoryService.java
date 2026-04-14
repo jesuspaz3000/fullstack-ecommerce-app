@@ -11,6 +11,7 @@ import java.util.List;
 public interface CategoryService {
     CategoryDTO createCategory(CategoryCreateDTO request);
     CategoryDTO updateCategory(Long id, CategoryUpdateDTO request);
+    void deleteCategory(Long id);
     void updateStatus(Long id, Boolean isActive);
     CategoryDTO getCategoryById(Long id);
     List<CategoryDTO> getAllCategories(String search);

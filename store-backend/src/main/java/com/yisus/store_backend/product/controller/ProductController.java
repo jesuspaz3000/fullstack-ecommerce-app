@@ -112,6 +112,19 @@ public class ProductController {
         return ResponseEntity.ok(product);
     }
 
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('products.delete')")
+    @Operation(summary = "Delete product", description = "Soft-deletes a product by setting isActive to false")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Product deleted successfully",
+                    content = @Content(schema = @Schema(implementation = MessageResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Product not found", content = @Content)
+    })
+    public ResponseEntity<MessageResponse> deleteProduct(@PathVariable Long id) {
+        productService.deleteProduct(id);
+        return ResponseEntity.ok(new MessageResponse("Product deleted successfully"));
+    }
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAuthority('products.update')")
     public ResponseEntity<MessageResponse> updateProductStatus(@PathVariable Long id, @Valid @RequestBody ProductUpdateStatusDTO request) {

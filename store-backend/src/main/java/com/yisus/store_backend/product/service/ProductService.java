@@ -11,6 +11,7 @@ import java.util.List;
 public interface ProductService {
     ProductDTO createProduct(ProductCreateDTO request);
     ProductDTO updateProduct(Long id, ProductUpdateDTO request);
+    void deleteProduct(Long id);
     void updateProductStatus(Long id, Boolean isActive);
     ProductDTO getProductById(Long id);
     List<ProductDTO> getAllProducts(String search);

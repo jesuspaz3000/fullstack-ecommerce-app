@@ -1,39 +1,29 @@
 'use client';
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect } from "react";
 import {
     Alert,
     Box,
     Button,
-    Checkbox,
-    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
     IconButton,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableRow,
     TextField,
     Typography,
 } from "@mui/material";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import { useUpdateRole, useAllPermissions } from "../hooks/rolesHooks";
-import { Permission, Role } from "../types/rolesTypes";
-import {
-    getModuleLabelEs,
-    getPermissionDescriptionEs,
-    getPermissionLabelEs,
-} from "@/shared/config/permissionLabels.es";
+import { useUpdateRole, useGetRoleById } from "../hooks/rolesHooks";
+import { Role } from "../types/rolesTypes";
 import {
     adminFormDialogActionsSx,
     adminFormDialogContentSx,
     adminFormDialogPaperSx,
     adminFormDialogTitleRowSx,
 } from "@/shared/mui/adminFormDialog";
+import InlineLoading from "@/shared/components/InlineLoading";
+import PermissionsTable from "./PermissionsTable";
 
 interface EditRoleProps {
     open: boolean;
@@ -42,16 +32,9 @@ interface EditRoleProps {
     onSuccess: () => void;
 }
 
-function groupByModule(permissions: Permission[]): Record<string, Permission[]> {
-    return permissions.reduce<Record<string, Permission[]>>((acc, p) => {
-        acc[p.module] = [...(acc[p.module] ?? []), p];
-        return acc;
-    }, {});
-}
-
 export default function EditRole({ open, role, onClose, onSuccess }: EditRoleProps) {
     const { execute: updateRole, loading, error } = useUpdateRole();
-    const { data: permissions, loading: loadingPerms } = useAllPermissions(open);
+    const { data: freshRole, loading: loadingFresh, error: errorFetch } = useGetRoleById(role?.id, open);
 
     const handleClose = () => { (document.activeElement as HTMLElement)?.blur(); onClose(); };
 
@@ -59,30 +42,15 @@ export default function EditRole({ open, role, onClose, onSuccess }: EditRolePro
     const [description, setDescription] = useState("");
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
+    // Poblar formulario con datos frescos del servidor
     useEffect(() => {
-        if (open && role) {
-            setName(role.name);
-            setDescription(role.description);
-            setSelectedIds(role.permissions.map((p) => p.id));
-        }
-    }, [open, role]);
-
-    const groupedPerms = groupByModule(permissions);
-
-    const togglePermission = (id: number) =>
-        setSelectedIds((prev) =>
-            prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-        );
-
-    const toggleModule = (module: string) => {
-        const ids = groupedPerms[module].map((p) => p.id);
-        const allSelected = ids.every((id) => selectedIds.includes(id));
-        setSelectedIds((prev) =>
-            allSelected
-                ? prev.filter((id) => !ids.includes(id))
-                : [...new Set([...prev, ...ids])]
-        );
-    };
+        if (!open) return;
+        const source = freshRole ?? role;
+        if (!source) return;
+        setName(source.name);
+        setDescription(source.description);
+        setSelectedIds(source.permissions.map((p) => p.id));
+    }, [open, freshRole, role]);
 
     const handleSubmit = async () => {
         if (!role || !name.trim()) return;
@@ -93,6 +61,8 @@ export default function EditRole({ open, role, onClose, onSuccess }: EditRolePro
         });
         if (result) { onSuccess(); handleClose(); }
     };
+
+    const isLoading = loadingFresh;
 
     return (
         <Dialog
@@ -115,117 +85,40 @@ export default function EditRole({ open, role, onClose, onSuccess }: EditRolePro
             </DialogTitle>
 
             <DialogContent dividers sx={adminFormDialogContentSx}>
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
-                    {error && <Alert severity="error">{error}</Alert>}
+                {isLoading ? (
+                    <InlineLoading />
+                ) : errorFetch ? (
+                    <Alert severity="error">{errorFetch}</Alert>
+                ) : (
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                        {error && <Alert severity="error">{error}</Alert>}
 
-                    <TextField
-                        label="Nombre"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        fullWidth
-                        required
-                        size="small"
-                    />
+                        <TextField
+                            label="Nombre"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            fullWidth
+                            required
+                            size="small"
+                        />
 
-                    <TextField
-                        label="Descripción"
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        fullWidth
-                        multiline
-                        rows={3}
-                        size="small"
-                    />
+                        <TextField
+                            label="Descripción"
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            fullWidth
+                            multiline
+                            rows={3}
+                            size="small"
+                        />
 
-                    <Box>
-                        <Typography variant="subtitle2" fontWeight={600} mb={1}>
-                            Permisos ({selectedIds.length} seleccionados)
-                        </Typography>
-
-                        {loadingPerms ? (
-                            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
-                                <CircularProgress size={24} />
-                            </Box>
-                        ) : (
-                            <TableContainer
-                                sx={{
-                                    border: "1px solid",
-                                    borderColor: "divider",
-                                    borderRadius: 1,
-                                    maxHeight: 320,
-                                    overflow: "auto",
-                                }}
-                            >
-                                <Table size="small" stickyHeader>
-                                    <TableBody>
-                                        {Object.entries(groupedPerms).map(([module, perms]) => {
-                                            const ids          = perms.map((p) => p.id);
-                                            const allSelected  = ids.every((id) => selectedIds.includes(id));
-                                            const someSelected = ids.some((id) => selectedIds.includes(id));
-                                            return (
-                                                <Fragment key={module}>
-                                                    {/* Fila de módulo */}
-                                                    <TableRow>
-                                                        <TableCell sx={{ py: 0.5 }} colSpan={2}>
-                                                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                                                <Checkbox
-                                                                    size="small"
-                                                                    checked={allSelected}
-                                                                    indeterminate={someSelected && !allSelected}
-                                                                    onChange={() => toggleModule(module)}
-                                                                    sx={{ p: 0.5 }}
-                                                                />
-                                                                <Typography variant="body2" fontWeight={700}>
-                                                                    {getModuleLabelEs(module)}
-                                                                </Typography>
-                                                            </Box>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                    {/* Filas de permisos */}
-                                                    {perms.map((p) => {
-                                                        const desc = getPermissionDescriptionEs(p.name, p.description);
-                                                        return (
-                                                        <TableRow
-                                                            key={p.id}
-                                                            hover
-                                                            onClick={() => togglePermission(p.id)}
-                                                            sx={{ cursor: "pointer" }}
-                                                        >
-                                                            <TableCell sx={{ pl: 4, py: 0.75, width: "100%" }}>
-                                                                <Typography variant="body2" component="div">
-                                                                    {getPermissionLabelEs(p.name)}
-                                                                </Typography>
-                                                                {desc ? (
-                                                                    <Typography
-                                                                        variant="caption"
-                                                                        color="text.secondary"
-                                                                        component="div"
-                                                                        sx={{ display: "block", mt: 0.25, lineHeight: 1.35 }}
-                                                                    >
-                                                                        {desc}
-                                                                    </Typography>
-                                                                ) : null}
-                                                            </TableCell>
-                                                            <TableCell padding="checkbox">
-                                                                <Checkbox
-                                                                    size="small"
-                                                                    checked={selectedIds.includes(p.id)}
-                                                                    onChange={() => togglePermission(p.id)}
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                />
-                                                            </TableCell>
-                                                        </TableRow>
-                                                        );
-                                                    })}
-                                                </Fragment>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
-                        )}
+                        <PermissionsTable
+                            enabled={open}
+                            selectedIds={selectedIds}
+                            onChange={setSelectedIds}
+                        />
                     </Box>
-                </Box>
+                )}
             </DialogContent>
 
             <DialogActions sx={adminFormDialogActionsSx}>
@@ -234,7 +127,7 @@ export default function EditRole({ open, role, onClose, onSuccess }: EditRolePro
                     onClick={handleSubmit}
                     variant="contained"
                     loading={loading}
-                    disabled={!name.trim()}
+                    disabled={!name.trim() || isLoading}
                 >
                     Guardar
                 </Button>

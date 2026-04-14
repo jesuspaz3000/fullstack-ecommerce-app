@@ -31,6 +31,7 @@ public final class PermissionI18nEs {
         put("users.read", "Ver usuarios", "Permite listar y consultar datos de usuarios.");
         put("users.update", "Editar usuarios", "Permite modificar datos de usuarios existentes.");
         put("users.delete", "Eliminar usuarios", "Permite eliminar usuarios del sistema.");
+        put("users.change_password", "Cambiar contraseña", "Permite restablecer la contraseña de cualquier usuario desde el panel de administración.");
         put("roles.create", "Crear roles", "Permite crear nuevos roles.");
         put("roles.read", "Ver roles", "Permite listar y consultar roles y sus permisos.");
         put("roles.update", "Editar roles", "Permite modificar roles y asignar permisos.");

@@ -17,10 +17,14 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     Optional<Product> findByName(String name);
 
-    @Query("SELECT p FROM Product p WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))")
+    List<Product> findAllByIsActiveTrue();
+
+    Page<Product> findAllByIsActiveTrue(Pageable pageable);
+
+    @Query("SELECT p FROM Product p WHERE p.isActive = true AND LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))")
     List<Product> findBySearch(@Param("search") String search);
 
-    @Query("SELECT p FROM Product p WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))")
+    @Query("SELECT p FROM Product p WHERE p.isActive = true AND LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))")
     Page<Product> findBySearch(@Param("search") String search, Pageable pageable);
 
     /** Para el módulo de Reportes: productos filtrados sin paginación. */
@@ -29,8 +33,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
            "ORDER BY p.name ASC")
     List<Product> findForReport(@Param("categoryId") Long categoryId);
 
-    long countByCategory_Id(Long categoryId);
+    long countByCategory_IdAndIsActiveTrue(Long categoryId);
 
-    @Query("SELECT p.category.id, COUNT(p) FROM Product p WHERE p.category.id IN :ids GROUP BY p.category.id")
+    @Query("SELECT p.category.id, COUNT(p) FROM Product p WHERE p.category.id IN :ids AND p.isActive = true GROUP BY p.category.id")
     List<Object[]> countProductsGroupedByCategoryIds(@Param("ids") Collection<Long> ids);
 }

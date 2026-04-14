@@ -22,4 +22,10 @@ export const UserService = {
         const response = await ApiService.patch<User>(`/users/${id}/status`, { isActive });
         return response.data;
     },
+    deleteUser: async (id: number): Promise<void> => {
+        await ApiService.delete(`/users/${id}`);
+    },
+    adminChangePassword: async (id: number, newPassword: string): Promise<void> => {
+        await ApiService.patch(`/users/${id}/password`, { newPassword });
+    },
 }

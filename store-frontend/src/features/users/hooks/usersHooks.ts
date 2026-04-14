@@ -58,6 +58,25 @@ export function useUser(id: number) {
     return { data, loading, error, refetch: load };
 }
 
+// Hook para obtener un usuario por ID de forma condicional (para dialogs de edición)
+export function useGetUserById(id: number | null | undefined, enabled: boolean) {
+    const [data, setData]       = useState<User | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!enabled || !id) { setData(null); setError(null); return; }
+        setLoading(true);
+        setError(null);
+        UserService.getUser(id)
+            .then(setData)
+            .catch(() => setError("Error al cargar el usuario."))
+            .finally(() => setLoading(false));
+    }, [id, enabled]);
+
+    return { data, loading, error };
+}
+
 export function useCreateUser() {
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState<string | null>(null);
@@ -112,6 +131,50 @@ export function useStatusUser() {
             console.error("[useStatusUser]", err);
             setError("Error al cambiar el estado del usuario.");
             return null;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { execute, loading, error };
+}
+
+export function useDeleteUser() {
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState<string | null>(null);
+
+    const execute = useCallback(async (id: number): Promise<boolean> => {
+        setLoading(true);
+        setError(null);
+        try {
+            await UserService.deleteUser(id);
+            return true;
+        } catch (err) {
+            console.error("[useDeleteUser]", err);
+            setError("Error al eliminar el usuario.");
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { execute, loading, error };
+}
+
+export function useAdminChangePassword() {
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState<string | null>(null);
+
+    const execute = useCallback(async (id: number, newPassword: string): Promise<boolean> => {
+        setLoading(true);
+        setError(null);
+        try {
+            await UserService.adminChangePassword(id, newPassword);
+            return true;
+        } catch (err) {
+            console.error("[useAdminChangePassword]", err);
+            setError("Error al cambiar la contraseña.");
+            return false;
         } finally {
             setLoading(false);
         }

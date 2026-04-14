@@ -22,4 +22,7 @@ export const ProductService = {
         const response = await ApiService.patch<Product>(`/products/${id}/status`, { isActive });
         return response.data;
     },
+    deleteProduct: async (id: number): Promise<void> => {
+        await ApiService.delete(`/products/${id}`);
+    },
 }

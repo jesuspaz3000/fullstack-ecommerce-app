@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Grid from "@mui/material/Grid";
 import {
     Alert, Box, Card, CardContent, CardHeader, Chip,
@@ -24,6 +24,40 @@ import type {
 
 const currency = (v: number) =>
     new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(v);
+
+/**
+ * Mide el ancho del contenedor con ResizeObserver.
+ * - Primera medición (montaje): inmediata, sin espera.
+ * - Mediciones siguientes (resize del sidebar): debounce para no
+ *   rerenderizar en cada píxel de la transición CSS.
+ */
+function useDebounceWidth(delay = 260) {
+    const ref     = useRef<HTMLDivElement>(null);
+    const isFirst = useRef(true);
+    const [width, setWidth] = useState<number | undefined>(undefined);
+
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        let timer: ReturnType<typeof setTimeout>;
+        const ro = new ResizeObserver((entries) => {
+            const w = entries[0]?.contentRect.width;
+            if (!w) return;
+            if (isFirst.current) {
+                isFirst.current = false;
+                setWidth(Math.floor(w));        // inmediato al montar
+            } else {
+                clearTimeout(timer);
+                timer = setTimeout(() => setWidth(Math.floor(w)), delay); // debounce al redimensionar
+            }
+        });
+        ro.observe(el);
+        return () => { ro.disconnect(); clearTimeout(timer); };
+    }, [delay]);
+
+    return { ref, width };
+}
+
 
 // ── Tarjeta de resumen ────────────────────────────────────────────────────────
 
@@ -92,6 +126,8 @@ function SalesBarChart({
     const isNarrow = useMediaQuery(theme.breakpoints.down("sm"));
     const isCompact = useMediaQuery(theme.breakpoints.down("md"));
 
+    const { ref: containerRef, width: chartWidth } = useDebounceWidth(260);
+
     const isEmpty = !loading && data.length === 0;
 
     /** En móvil el margen izquierdo fijo empujaba todo el gráfico a la derecha. */
@@ -120,17 +156,20 @@ function SalesBarChart({
                     boxSizing: "border-box",
                 }}
             >
-                {loading ? (
-                    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 260 }}>
-                        <CircularProgress size={28} />
-                    </Box>
-                ) : isEmpty ? (
-                    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 260 }}>
-                        <Typography color="text.secondary" variant="body2">Sin datos disponibles</Typography>
-                    </Box>
-                ) : (
-                    <Box sx={{ width: "100%", maxWidth: "100%", mx: 0 }}>
+                {/* El Box con ref siempre está en el DOM para que el
+                    ResizeObserver se adjunte correctamente desde el primer render */}
+                <Box ref={containerRef} sx={{ width: "100%", maxWidth: "100%", mx: 0 }}>
+                    {loading ? (
+                        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 260 }}>
+                            <CircularProgress size={28} />
+                        </Box>
+                    ) : isEmpty ? (
+                        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: 260 }}>
+                            <Typography color="text.secondary" variant="body2">Sin datos disponibles</Typography>
+                        </Box>
+                    ) : chartWidth ? (
                         <BarChart
+                            width={chartWidth}
                             dataset={data.map((d) => ({ label: d.label, amount: d.amount }))}
                             xAxis={[{
                                 scaleType: "band",
@@ -151,8 +190,12 @@ function SalesBarChart({
                             margin={chartMargin}
                             slotProps={{ legend: { sx: { display: "none" } } }}
                         />
-                    </Box>
-                )}
+                    ) : (
+                        // Reserva el espacio mientras el ResizeObserver dispara
+                        // para evitar el colapso y la posterior expansión brusca
+                        <Box sx={{ height: isNarrow ? 260 : 270 }} />
+                    )}
+                </Box>
             </CardContent>
         </Card>
     );

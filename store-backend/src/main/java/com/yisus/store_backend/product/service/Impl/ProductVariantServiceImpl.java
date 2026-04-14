@@ -138,7 +138,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     @Override
     @Transactional(readOnly = true)
     public List<ProductVariantDTO> getProductVariantsByProductId(Long productId) {
-        List<ProductVariant> variants = productVariantRepository.findByProductId(productId);
+        List<ProductVariant> variants = productVariantRepository.findActiveByProductId(productId);
         return variants.stream()
                 .map(this::convertToDTO)
                 .toList();

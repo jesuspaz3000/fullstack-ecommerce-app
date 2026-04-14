@@ -15,27 +15,28 @@ import {
     Paper,
     Skeleton,
     Snackbar,
-    Switch,
     TablePagination,
     TextField,
     Tooltip,
     Typography,
 } from "@mui/material";
-import AddRoundedIcon      from "@mui/icons-material/AddRounded";
-import SearchRoundedIcon   from "@mui/icons-material/SearchRounded";
-import EditRoundedIcon     from "@mui/icons-material/EditRounded";
+import AddRoundedIcon        from "@mui/icons-material/AddRounded";
+import SearchRoundedIcon     from "@mui/icons-material/SearchRounded";
+import EditRoundedIcon       from "@mui/icons-material/EditRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
+import DeleteRoundedIcon     from "@mui/icons-material/DeleteRounded";
 import { compactTablePaginationSx } from "@/shared/mui/compactTablePaginationSx";
 import DataTable, { TableColumn } from "@/shared/components/DataTable";
 import { ListLayoutMeasurePlaceholder } from "@/shared/components/ListLayoutMeasurePlaceholder";
 import { useNarrowLayoutMd } from "@/shared/hooks/useNarrowLayoutMd";
 import { useHasPermission } from "@/shared/hooks/usePermission";
 import { PERMISSIONS }      from "@/shared/config/permissions";
-import { useProducts, useStatusProduct } from "./hooks/productsHooks";
-import { Product }    from "./types/productsTypes";
-import CreateProduct  from "./components/CreateProduct";
-import EditProduct    from "./components/EditProduct";
-import ViewProduct    from "./components/ViewProduct";
+import { useProducts } from "./hooks/productsHooks";
+import { Product }      from "./types/productsTypes";
+import CreateProduct    from "./components/CreateProduct";
+import EditProduct      from "./components/EditProduct";
+import ViewProduct      from "./components/ViewProduct";
+import DeleteProduct    from "./components/DeleteProduct";
 
 interface SnackbarState {
     open: boolean;
@@ -64,7 +65,7 @@ function ProductMobileCard({
     highlighted,
     onView,
     onEdit,
-    onToggleStatus,
+    onDelete,
 }: {
     product: Product;
     mounted: boolean;
@@ -74,7 +75,7 @@ function ProductMobileCard({
     highlighted: boolean;
     onView: (p: Product) => void;
     onEdit: (p: Product) => void;
-    onToggleStatus: (p: Product) => void;
+    onDelete: (p: Product) => void;
 }) {
     const theme = useTheme();
     const accent = theme.palette.primary.main;
@@ -144,7 +145,7 @@ function ProductMobileCard({
                                 </IconButton>
                             </Tooltip>
                         )}
-                        {canUpdate && product.isActive && (
+                        {canUpdate && (
                             <Tooltip title="Editar">
                                 <IconButton
                                     size="small"
@@ -153,6 +154,18 @@ function ProductMobileCard({
                                     sx={{ color: alpha(accent, 0.95) }}
                                 >
                                     <EditRoundedIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        )}
+                        {canDelete && (
+                            <Tooltip title="Eliminar">
+                                <IconButton
+                                    size="small"
+                                    onClick={() => onDelete(product)}
+                                    aria-label="Eliminar producto"
+                                    sx={{ color: "error.main" }}
+                                >
+                                    <DeleteRoundedIcon fontSize="small" />
                                 </IconButton>
                             </Tooltip>
                         )}
@@ -165,58 +178,21 @@ function ProductMobileCard({
                     display: "flex",
                     flexWrap: "wrap",
                     alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 1,
+                    gap: 0.75,
                     mt: 2,
                     pt: 2,
                     borderTop: "1px solid",
                     borderColor: "divider",
                 }}
             >
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, alignItems: "center" }}>
-                    <Chip
-                        label={`VENTA: ${formatCurrency(product.salePrice)}`}
-                        size="small"
-                        variant="filled"
-                        sx={{ ...metricChipSx, maxWidth: "100%" }}
-                    />
-                    <Chip label={`VARIANTES: ${variants}`} size="small" variant="filled" sx={metricChipSx} />
-                    <Chip label={`DISPONIBLE: ${stock}`} size="small" variant="filled" sx={metricChipSx} />
-                </Box>
-                <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                    {mounted && canDelete ? (
-                        <Tooltip title={product.isActive ? "Desactivar" : "Activar"}>
-                            <Box
-                                sx={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 0.5,
-                                    cursor: "pointer",
-                                }}
-                                onClick={() => onToggleStatus(product)}
-                            >
-                                <Switch
-                                    checked={product.isActive}
-                                    size="small"
-                                    color="success"
-                                    onChange={() => onToggleStatus(product)}
-                                    onClick={(e) => e.stopPropagation()}
-                                />
-                                <Typography
-                                    variant="caption"
-                                    color={product.isActive ? "success.main" : "text.secondary"}
-                                    sx={{ fontSize: "0.7rem", whiteSpace: "nowrap" }}
-                                >
-                                    {product.isActive ? "Activo" : "Inactivo"}
-                                </Typography>
-                            </Box>
-                        </Tooltip>
-                    ) : (
-                        <Typography variant="caption" color={product.isActive ? "success.main" : "text.secondary"}>
-                            {product.isActive ? "Activo" : "Inactivo"}
-                        </Typography>
-                    )}
-                </Box>
+                <Chip
+                    label={`VENTA: ${formatCurrency(product.salePrice)}`}
+                    size="small"
+                    variant="filled"
+                    sx={{ ...metricChipSx, maxWidth: "100%" }}
+                />
+                <Chip label={`VARIANTES: ${variants}`} size="small" variant="filled" sx={metricChipSx} />
+                <Chip label={`DISPONIBLE: ${stock}`} size="small" variant="filled" sx={metricChipSx} />
             </Box>
         </Paper>
     );
@@ -238,6 +214,7 @@ export default function Products() {
     const [createOpen, setCreateOpen]           = useState(false);
     const [editOpen, setEditOpen]               = useState(false);
     const [viewOpen, setViewOpen]               = useState(false);
+    const [deleteOpen, setDeleteOpen]           = useState(false);
     const [snackbar, setSnackbar]               = useState<SnackbarState>({ open: false, message: "", severity: "success" });
 
     const canRead   = useHasPermission(PERMISSIONS.PRODUCTS.READ);
@@ -257,13 +234,11 @@ export default function Products() {
         return () => clearTimeout(timer);
     }, [searchInput]);
 
-    const { data, loading, refetch, updateRow } = useProducts({
+    const { data, loading, refetch } = useProducts({
         limit:  rowsPerPage,
         offset: page * rowsPerPage,
         search: debouncedSearch || undefined,
     });
-
-    const { execute: statusProduct } = useStatusProduct();
 
     const showSnackbar = (message: string, severity: "success" | "error" = "success") =>
         setSnackbar({ open: true, message, severity });
@@ -283,17 +258,10 @@ export default function Products() {
         setSelectedProduct(product);
         setViewOpen(true);
     };
-
-    const handleToggleStatus = async (product: Product) => {
-        const newStatus = !product.isActive;
-        updateRow(product.id, { isActive: newStatus });
-        const result = await statusProduct(product.id, newStatus);
-        if (result) {
-            showSnackbar(newStatus ? "Producto activado exitosamente." : "Producto desactivado exitosamente.");
-        } else {
-            updateRow(product.id, { isActive: product.isActive });
-            showSnackbar("Error al cambiar el estado del producto.", "error");
-        }
+    const handleDelete = (product: Product) => {
+        blurActiveElement();
+        setSelectedProduct(product);
+        setDeleteOpen(true);
     };
 
     const columns: TableColumn<Product>[] = [
@@ -333,40 +301,9 @@ export default function Products() {
             ),
         },
         {
-            key: "isActive",
-            label: "Estado",
-            width: 130,
-            align: "center",
-            render: (row) => (
-                mounted && canDelete ? (
-                    <Tooltip title={row.isActive ? "Desactivar" : "Activar"}>
-                        <Box
-                            sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.5, cursor: "pointer" }}
-                            onClick={() => handleToggleStatus(row)}
-                        >
-                            <Switch
-                                checked={row.isActive}
-                                size="small"
-                                color="success"
-                                onChange={() => handleToggleStatus(row)}
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                            <Typography variant="caption" color={row.isActive ? "success.main" : "text.secondary"}>
-                                {row.isActive ? "Activo" : "Inactivo"}
-                            </Typography>
-                        </Box>
-                    </Tooltip>
-                ) : (
-                    <Typography variant="caption" color={row.isActive ? "success.main" : "text.secondary"}>
-                        {row.isActive ? "Activo" : "Inactivo"}
-                    </Typography>
-                )
-            ),
-        },
-        {
             key: "actions",
             label: "Acciones",
-            width: 120,
+            width: 130,
             align: "center",
             render: (row) => (
                 mounted ? (
@@ -378,10 +315,17 @@ export default function Products() {
                                 </IconButton>
                             </Tooltip>
                         )}
-                        {canUpdate && row.isActive && (
+                        {canUpdate && (
                             <Tooltip title="Editar">
                                 <IconButton size="small" onClick={() => handleEdit(row)}>
                                     <EditRoundedIcon fontSize="small" />
+                                </IconButton>
+                            </Tooltip>
+                        )}
+                        {canDelete && (
+                            <Tooltip title="Eliminar">
+                                <IconButton size="small" onClick={() => handleDelete(row)} sx={{ color: "error.main" }}>
+                                    <DeleteRoundedIcon fontSize="small" />
                                 </IconButton>
                             </Tooltip>
                         )}
@@ -489,7 +433,7 @@ export default function Products() {
                                             highlighted={highlighted}
                                             onView={handleView}
                                             onEdit={handleEdit}
-                                            onToggleStatus={handleToggleStatus}
+                                            onDelete={handleDelete}
                                         />
                                     </Grid>
                                 );
@@ -558,6 +502,13 @@ export default function Products() {
                 open={viewOpen}
                 productId={selectedProduct?.id ?? null}
                 onClose={() => setViewOpen(false)}
+            />
+
+            <DeleteProduct
+                open={deleteOpen}
+                product={selectedProduct}
+                onClose={() => setDeleteOpen(false)}
+                onSuccess={() => { refetch(); showSnackbar("Producto eliminado exitosamente."); }}
             />
 
             <Snackbar

@@ -92,6 +92,19 @@ public class CategoryController {
         return ResponseEntity.ok(category);
     }
 
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('categories.delete')")
+    @Operation(summary = "Delete category", description = "Soft-deletes a category by setting isActive to false")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Category deleted successfully",
+            content = @Content(schema = @Schema(implementation = MessageResponse.class))),
+        @ApiResponse(responseCode = "404", description = "Category not found", content = @Content)
+    })
+    public ResponseEntity<MessageResponse> deleteCategory(@PathVariable Long id) {
+        categoryService.deleteCategory(id);
+        return ResponseEntity.ok(new MessageResponse("Category deleted successfully"));
+    }
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAuthority('categories.update')")
     public ResponseEntity<MessageResponse> updateStatus(@PathVariable Long id, @Valid @RequestBody CategoryUpdateStatusDTO request) {

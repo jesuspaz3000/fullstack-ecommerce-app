@@ -112,13 +112,23 @@ export default function SessionSalesPanel({
     const [printingId, setPrintingId]   = useState<number | null>(null);
     const { canRead, canUpdate } = useAuthStore(useShallow(selectOrderPermissions));
 
-    const handlePrintReceipt = async (sale: Sale) => {
-        setPrintingId(sale.id);
-        try {
-            await CashService.openReceipt(sale.id);
-        } finally {
-            setPrintingId(null);
+    const handlePrintReceipt = (sale: Sale) => {
+        const w = window.open("about:blank", "_blank");
+        if (!w) {
+            window.alert(
+                "El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio e intenta de nuevo."
+            );
+            return;
         }
+        setPrintingId(sale.id);
+        void CashService.openReceipt(sale.id, w)
+            .catch((err: unknown) => {
+                const msg = err instanceof Error ? err.message : "No se pudo abrir el recibo.";
+                window.alert(msg);
+            })
+            .finally(() => {
+                setPrintingId(null);
+            });
     };
 
     useEffect(() => setMounted(true), []);

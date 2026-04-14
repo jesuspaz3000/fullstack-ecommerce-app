@@ -35,6 +35,26 @@ export function useCategories({ limit, offset, search }: Params = {}) {
     return { data, loading, error, refetch: load, updateRow };
 }
 
+// ─── useGetCategoryById ────────────────────────────────────────────────────────
+
+export function useGetCategoryById(id: number | null | undefined, enabled: boolean) {
+    const [data, setData]       = useState<Category | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!enabled || !id) { setData(null); setError(null); return; }
+        setLoading(true);
+        setError(null);
+        CategoryService.getCategoryById(id)
+            .then(setData)
+            .catch(() => setError("Error al cargar la categoría."))
+            .finally(() => setLoading(false));
+    }, [id, enabled]);
+
+    return { data, loading, error };
+}
+
 // ─── useCreateCategory ─────────────────────────────────────────────────────────
 
 export function useCreateCategory() {
@@ -79,6 +99,36 @@ export function useUpdateCategory() {
     }, []);
 
     return { execute, loading, error };
+}
+
+// ─── useDeleteCategory ────────────────────────────────────────────────────────
+
+export function useDeleteCategory() {
+    const [loading, setLoading] = useState(false);
+    const [error, setError]     = useState<string | null>(null);
+
+    const reset = useCallback(() => setError(null), []);
+
+    const execute = useCallback(async (id: number): Promise<boolean> => {
+        setLoading(true);
+        setError(null);
+        try {
+            await CategoryService.deleteCategory(id);
+            return true;
+        } catch (err: unknown) {
+            console.error("[useDeleteCategory]", err);
+            // Extraer el mensaje específico del backend (ej: "tiene X productos activos")
+            const msg =
+                (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+                ?? "Error al eliminar la categoría.";
+            setError(msg);
+            return false;
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    return { execute, loading, error, reset };
 }
 
 // ─── useStatusCategory ────────────────────────────────────────────────────────

@@ -1,9 +1,10 @@
 export const PERMISSIONS = {
     USERS: {
-        CREATE: "users.create",
-        READ:   "users.read",
-        UPDATE: "users.update",
-        DELETE: "users.delete",
+        CREATE:          "users.create",
+        READ:            "users.read",
+        UPDATE:          "users.update",
+        DELETE:          "users.delete",
+        CHANGE_PASSWORD: "users.change_password",
     },
     ROLES: {
         CREATE: "roles.create",
@@ -48,7 +49,7 @@ export const PERMISSIONS = {
     DASHBOARD: {
         READ: "dashboard.read",
     },
-    /** Centro de notificaciones (lista, SSE, marcar leídas). Crear avisos globales sigue siendo solo SUPERADMIN en API. */
+    /** Centro de notificaciones (lista, SSE, marcar leídas). Las notificaciones las genera el sistema automáticamente. */
     NOTIFICATIONS: {
         READ: "notifications.read",
     },

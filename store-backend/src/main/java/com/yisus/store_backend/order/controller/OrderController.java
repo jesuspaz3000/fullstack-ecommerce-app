@@ -43,6 +43,7 @@ public class OrderController {
     
     private final OrderService orderService;
     private final SaleReceiptService saleReceiptService;
+    private final com.yisus.store_backend.order.service.EscPosPrintService escPosPrintService;
 
     @PostMapping
     @PreAuthorize("hasAuthority('orders.create')")
@@ -175,5 +176,14 @@ public class OrderController {
     @Operation(summary = "Get orders by cash session", description = "Returns orders linked to a specific cash opening session")
     public ResponseEntity<List<OrderDTO>> getOrdersByCashSession(@RequestParam Long sessionId) {
         return ResponseEntity.ok(orderService.getOrdersByCashSession(sessionId));
+    }
+
+    @PostMapping("/{id}/print-direct")
+    @PreAuthorize("hasAuthority('orders.read')")
+    @Operation(summary = "Print order directly to ESC/POS thermal printer via TCP/IP")
+    public ResponseEntity<com.yisus.store_backend.common.dto.MessageResponse> printOrderDirectly(@PathVariable Long id) {
+        OrderDTO order = orderService.getOrderById(id);
+        escPosPrintService.printOrderDirect(order);
+        return ResponseEntity.ok(new com.yisus.store_backend.common.dto.MessageResponse("Impresión enviada correctamente a la ticketera"));
     }
 }

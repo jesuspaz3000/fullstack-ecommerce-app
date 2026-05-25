@@ -58,4 +58,13 @@ public class StoreConfigController {
     public ResponseEntity<StoreConfigDTO> deleteLogo() {
         return ResponseEntity.ok(storeConfigService.deleteLogo());
     }
+
+    @PostMapping("/printer/test")
+    @PreAuthorize("hasAuthority('settings.update')")
+    @Operation(summary = "Probar la conexión con la ticketera TCP/IP")
+    public ResponseEntity<com.yisus.store_backend.common.dto.MessageResponse> testPrinterConnection(
+            @Valid @RequestBody com.yisus.store_backend.storeconfig.dto.PrinterTestDTO testDTO) {
+        storeConfigService.testPrinterConnection(testDTO.getPrinterIp(), testDTO.getPrinterPort());
+        return ResponseEntity.ok(new com.yisus.store_backend.common.dto.MessageResponse("Conexión con la impresora exitosa"));
+    }
 }

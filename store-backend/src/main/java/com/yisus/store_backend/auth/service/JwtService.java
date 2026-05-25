@@ -1,5 +1,6 @@
 package com.yisus.store_backend.auth.service;
 
+import com.yisus.store_backend.user.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -52,11 +53,11 @@ public class JwtService {
     }
 
     public String generateAccessToken(Map<String, Object> extraClaims, UserDetails userDetails) {
-        return buildToken(extraClaims, userDetails, accessTokenExpiration);
+        return buildToken(withTokenVersionClaim(extraClaims, userDetails), userDetails, accessTokenExpiration);
     }
 
     public String generateRefreshToken(UserDetails userDetails) {
-        return buildToken(new HashMap<>(), userDetails, refreshTokenExpiration);
+        return buildToken(withTokenVersionClaim(new HashMap<>(), userDetails), userDetails, refreshTokenExpiration);
     }
 
     private String buildToken(
@@ -78,9 +79,36 @@ public class JwtService {
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         final String tokenIssuer = extractClaim(token, Claims::getIssuer);
-        return (username.equals(userDetails.getUsername()))
+        final boolean baseValid = username.equals(userDetails.getUsername())
                 && !isTokenExpired(token)
                 && issuer.equals(tokenIssuer);
+        if (!baseValid) {
+            return false;
+        }
+        if (userDetails instanceof User u) {
+            Long tokenTv = extractTokenVersion(token);
+            Long currentTv = u.getTokenVersion() == null ? 0L : u.getTokenVersion();
+            return tokenTv != null && tokenTv.equals(currentTv);
+        }
+        return true;
+    }
+
+    private Map<String, Object> withTokenVersionClaim(Map<String, Object> claims, UserDetails userDetails) {
+        if (userDetails instanceof User u) {
+            claims.put("tv", u.getTokenVersion() == null ? 0L : u.getTokenVersion());
+        }
+        return claims;
+    }
+
+    private Long extractTokenVersion(String token) {
+        try {
+            Object raw = extractClaim(token, c -> c.get("tv"));
+            if (raw == null) return null;
+            if (raw instanceof Number n) return n.longValue();
+            return Long.parseLong(raw.toString());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public long getExpirationTime(String token) {

@@ -13,4 +13,5 @@ public interface StoreConfigService {
     StoreConfigBrandingDTO getBranding();
     StoreConfigDTO uploadLogo(MultipartFile file);
     StoreConfigDTO deleteLogo();
+    void testPrinterConnection(String ip, int port);
 }

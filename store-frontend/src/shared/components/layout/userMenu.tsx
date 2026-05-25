@@ -42,15 +42,13 @@ export default function UserMenu() {
         setAnchor(null);
         try {
             await AuthService.logout();
-        } catch {
-            /* AuthService.logout limpia el store en finally aunque falle el POST */
-        } finally {
-            setLoading(false);
             if (typeof window !== "undefined") {
                 window.location.assign("/login");
             } else {
                 router.replace("/login");
             }
+        } catch {
+            setLoading(false);
         }
     };
 

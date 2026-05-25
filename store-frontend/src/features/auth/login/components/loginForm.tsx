@@ -43,7 +43,6 @@ export default function LoginForm() {
             } else {
                 setError("Ocurrió un error. Intenta de nuevo más tarde.");
             }
-        } finally {
             setLoading(false);
         }
     };
@@ -122,6 +121,7 @@ export default function LoginForm() {
                 size="large"
                 fullWidth
                 loading={loading}
+                disabled={loading}
                 sx={{ py: 1.5, fontWeight: 600, letterSpacing: 0.5 }}
             >
                 Ingresar

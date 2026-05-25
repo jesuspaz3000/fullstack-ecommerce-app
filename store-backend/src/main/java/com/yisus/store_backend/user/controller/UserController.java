@@ -1,5 +1,7 @@
 package com.yisus.store_backend.user.controller;
 
+import com.yisus.store_backend.auth.cookie.AuthCookieService;
+import com.yisus.store_backend.auth.service.JwtService;
 import com.yisus.store_backend.common.dto.MessageResponse;
 import com.yisus.store_backend.common.dto.PaginatedResponse;
 import com.yisus.store_backend.common.util.PaginationValidator;
@@ -13,6 +15,7 @@ import com.yisus.store_backend.user.dto.UserPaginatedResponse;
 import com.yisus.store_backend.user.dto.UserStatusDTO;
 import com.yisus.store_backend.user.model.User;
 import com.yisus.store_backend.user.service.UserService;
+import jakarta.servlet.http.HttpServletResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -45,6 +48,8 @@ import java.util.Map;
 @SecurityRequirement(name = "Bearer Authentication")
 public class UserController {
     private final UserService userService;
+    private final JwtService jwtService;
+    private final AuthCookieService authCookieService;
 
     @Operation(
             summary = "Get user profile",
@@ -254,11 +259,25 @@ public class UserController {
         return ResponseEntity.ok(new MessageResponse("Password changed successfully"));
     }
 
-    @Operation(summary = "Change password", description = "Allows the authenticated user to change their password")
+    @Operation(
+            summary = "Change password",
+            description = "Allows the authenticated user to change their password. " +
+                    "Invalidates all previously issued tokens (other browsers/sessions) and " +
+                    "reissues fresh httpOnly cookies for the current session."
+    )
     @PostMapping("/profile/change-password")
-    public ResponseEntity<MessageResponse> changePassword(Authentication authentication, @Valid @RequestBody ChangePasswordDTO dto) {
+    public ResponseEntity<MessageResponse> changePassword(
+            Authentication authentication,
+            @Valid @RequestBody ChangePasswordDTO dto,
+            HttpServletResponse response
+    ) {
         Long userId = ((User) authentication.getPrincipal()).getId();
-        userService.changePassword(userId, dto);
+        User updated = userService.changePassword(userId, dto);
+
+        String newAccessToken = jwtService.generateAccessToken(updated);
+        String newRefreshToken = jwtService.generateRefreshToken(updated);
+        authCookieService.addAuthCookies(response, newAccessToken, newRefreshToken);
+
         return ResponseEntity.ok(new MessageResponse("Password changed successfully"));
     }
 }

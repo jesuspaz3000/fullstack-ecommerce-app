@@ -44,6 +44,10 @@ public class StoreConfigServiceImpl implements StoreConfigService {
         config.setStoreName(dto.getStoreName().trim());
         config.setStoreRuc(dto.getStoreRuc() != null ? dto.getStoreRuc().trim() : null);
         config.setStoreAddress(dto.getStoreAddress() != null ? dto.getStoreAddress().trim() : null);
+        config.setPrinterName(dto.getPrinterName() != null ? dto.getPrinterName().trim() : null);
+        config.setPrinterIp(dto.getPrinterIp() != null ? dto.getPrinterIp().trim() : null);
+        config.setPrinterPort(dto.getPrinterPort());
+        config.setPrinterType(dto.getPrinterType() != null ? dto.getPrinterType().trim() : null);
         return toDTO(storeConfigRepository.save(config));
     }
 
@@ -129,7 +133,25 @@ public class StoreConfigServiceImpl implements StoreConfigService {
                 .storeRuc(c.getStoreRuc())
                 .storeAddress(c.getStoreAddress())
                 .logoUrl(c.getLogoUrl())
+                .printerName(c.getPrinterName())
+                .printerIp(c.getPrinterIp())
+                .printerPort(c.getPrinterPort())
+                .printerType(c.getPrinterType())
                 .updatedAt(c.getUpdatedAt())
                 .build();
+    }
+
+    @Override
+    public void testPrinterConnection(String ip, int port) {
+        try (java.net.Socket socket = new java.net.Socket()) {
+            socket.connect(new java.net.InetSocketAddress(ip, port), 3000);
+            try (java.io.OutputStream out = socket.getOutputStream()) {
+                out.write(new byte[]{0x1B, 0x40});
+                out.flush();
+            }
+        } catch (Exception e) {
+            log.warn("Error probando conexión a la impresora en {}:{}: {}", ip, port, e.getMessage());
+            throw new RuntimeException("No se pudo establecer conexión con la ticketera en " + ip + ":" + port + ". Detalle: " + e.getMessage());
+        }
     }
 }

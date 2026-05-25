@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -44,6 +45,21 @@ public class ProductVariant {
 
     @Column(unique = true)
     private String sku;
+
+    /**
+     * Precio de venta específico de esta variante. Si es {@code null}, se hereda
+     * el precio del producto padre. Permite que tallas/colores distintos tengan
+     * precios diferentes (p. ej. XXL cuesta más que S).
+     */
+    @Column(name = "sale_price", precision = 10, scale = 2)
+    private BigDecimal salePrice;
+
+    /**
+     * Precio de compra específico de esta variante. Si es {@code null}, se hereda
+     * el precio de compra del producto padre.
+     */
+    @Column(name = "purchase_price", precision = 10, scale = 2)
+    private BigDecimal purchasePrice;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -33,6 +33,7 @@ import type { NotificationItem, NotificationType } from "./types/notificationTyp
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import InlineLoading from "@/shared/components/InlineLoading";
+import { parseBackendDate } from "@/shared/utils/dateFormat";
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,9 @@ function linkLabel(link: string): string {
 
 function timeAgo(dateStr: string): string {
     try {
-        return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: es });
+        const d = parseBackendDate(dateStr);
+        if (!d) return dateStr;
+        return formatDistanceToNow(d, { addSuffix: true, locale: es });
     } catch {
         return dateStr;
     }

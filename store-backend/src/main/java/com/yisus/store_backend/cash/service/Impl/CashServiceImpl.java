@@ -124,15 +124,28 @@ public class CashServiceImpl implements CashService {
     @Override
     @Transactional
     public OutflowReasonDTO createOutflowReason(OutflowReasonCreateDTO dto) {
-        if (outflowReasonRepository.existsByName(dto.getName())) {
-            throw new DuplicateKeyException("Outflow reason already exists");
+        // Si ya existe un motivo con ese nombre, decidir según su estado:
+        // - Activo   -> duplicado real, rechazar.
+        // - Inactivo (soft-deleted) -> reactivar con los nuevos datos para
+        //   evitar chocar con la restricción UNIQUE en la columna name.
+        var existingOpt = outflowReasonRepository.findByName(dto.getName());
+        if (existingOpt.isPresent()) {
+            OutflowReason existing = existingOpt.get();
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                throw new DuplicateKeyException("Outflow reason already exists");
+            }
+            existing.setDescription(dto.getDescription());
+            existing.setIsActive(true);
+            OutflowReason reactivated = outflowReasonRepository.save(existing);
+            outflowReasonRepository.flush();
+            return convertToDTO(reactivated);
         }
-        
+
         OutflowReason reason = OutflowReason.builder()
                 .name(dto.getName())
                 .description(dto.getDescription())
                 .build();
-        
+
         OutflowReason saved = outflowReasonRepository.save(reason);
         outflowReasonRepository.flush();
         return convertToDTO(saved);

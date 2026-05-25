@@ -60,13 +60,11 @@ export default function Sidebar({ collapsed = false, onMobileClose }: SidebarPro
         setLogoutLoading(true);
         try {
             await AuthService.logout();
+            window.location.assign("/login");
         } catch {
-            /* el backend puede fallar; AuthService.logout igual limpia el store en finally */
-        } finally {
+            /* el backend puede fallar; re-habilitamos únicamente si hay error crítico */
             setLogoutLoading(false);
             setConfirmOpen(false);
-            /* Navegación completa: el middleware debe ver ya sin cookies (httpOnly borradas en /auth/logout). */
-            window.location.assign("/login");
         }
     };
 

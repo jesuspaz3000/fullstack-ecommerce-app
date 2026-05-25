@@ -27,6 +27,8 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
@@ -38,6 +40,14 @@ public class ReportServiceImpl implements ReportService {
 
     private static final DateTimeFormatter DT_FMT  = DateTimeFormatter.ofPattern("dd/MM/yy HH:mm");
     private static final DateTimeFormatter DAY_FMT  = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    /**
+     * Zona del cliente (Perú) para convertir los instantes UTC a la fecha local
+     * que el usuario ve en los filtros de los PDFs. Perú no aplica DST por lo
+     * que el offset es estable en -05:00; usar {@code ZoneId.of("America/Lima")}
+     * sigue funcionando aunque cambiara.
+     */
+    private static final ZoneId CLIENT_ZONE = ZoneId.of("America/Lima");
 
     // Paleta global
     private static final Color HDR_BG    = new Color(45, 55, 72);
@@ -70,7 +80,7 @@ public class ReportServiceImpl implements ReportService {
     @Override
     @Transactional(readOnly = true)
     public List<CashSessionHistoryDTO> getCashSessionsList(
-            Long cashRegisterId, String startDate, String endDate, String status) {
+            Long cashRegisterId, LocalDateTime startDate, LocalDateTime endDate, String status) {
         return fetchSessions(cashRegisterId, startDate, endDate, status)
                 .stream().map(this::toSessionDTO).collect(Collectors.toList());
     }
@@ -87,7 +97,7 @@ public class ReportServiceImpl implements ReportService {
     @Override
     @Transactional(readOnly = true)
     public byte[] generateCashSessionsPdf(
-            Long cashRegisterId, String startDate, String endDate, String status) {
+            Long cashRegisterId, LocalDateTime startDate, LocalDateTime endDate, String status) {
 
         List<CashOpening> sessions = fetchSessions(cashRegisterId, startDate, endDate, status);
 
@@ -338,7 +348,7 @@ public class ReportServiceImpl implements ReportService {
                     "REPORTE DE PRODUCTOS Y STOCK",
                     buildProductFiltersLabel(categoryId, status, stockFilter));
 
-            float[] cols = {25f, 155f, 90f, 65f, 55f, 60f, 65f};
+            float[] cols = {25f, 130f, 90f, 90f, 55f, 60f, 65f};
             PdfPTable table = new PdfPTable(cols);
             table.setTotalWidth(cw);
             table.setLockedWidth(true);
@@ -358,7 +368,7 @@ public class ReportServiceImpl implements ReportService {
                 addDataCell(table, String.valueOf(idx++),               fNormal, Element.ALIGN_CENTER, bg);
                 addDataCell(table, nvl(p.getName()),                    fNormal, Element.ALIGN_LEFT,   bg);
                 addDataCell(table, nvl(p.getCategoryName()),            fNormal, Element.ALIGN_LEFT,   bg);
-                addDataCell(table, currency(p.getSalePrice()),          fNormal, Element.ALIGN_RIGHT,  bg);
+                addDataCell(table, formatPriceRange(p),                 fNormal, Element.ALIGN_RIGHT,  bg);
                 addDataCell(table, String.valueOf(p.getVariantCount()), fNormal, Element.ALIGN_CENTER, bg);
                 addDataCell(table, String.valueOf(p.getTotalStock()),   fNormal, Element.ALIGN_CENTER, bg);
                 addDataCell(table, Boolean.TRUE.equals(p.getIsActive()) ? "Activo" : "Inactivo",
@@ -383,18 +393,30 @@ public class ReportServiceImpl implements ReportService {
 
     // ── Helpers de datos ──────────────────────────────────────────────────────
 
-    private List<CashOpening> fetchSessions(Long cashRegisterId, String startDate,
-                                             String endDate, String status) {
-        LocalDateTime from = startDate != null && !startDate.isBlank()
-                ? LocalDate.parse(startDate).atStartOfDay() : null;
-        LocalDateTime to = endDate != null && !endDate.isBlank()
-                ? LocalDate.parse(endDate).atTime(23, 59, 59) : null;
+    /**
+     * Filtra sesiones por rango {@code [startDate, endDate)}: inicio inclusivo,
+     * fin exclusivo. Los instantes llegan ya en UTC como {@link LocalDateTime}
+     * (la JVM corre en UTC y {@code openedAt} también está en UTC, así que la
+     * comparación es directa sin conversiones de zona).
+     */
+    private List<CashOpening> fetchSessions(Long cashRegisterId, LocalDateTime startDate,
+                                             LocalDateTime endDate, String status) {
+        LocalDateTime from = startDate;
+        LocalDateTime toExclusive = endDate;
+        if (from != null && toExclusive != null && from.isAfter(toExclusive)) {
+            LocalDateTime tmp = from;
+            from = toExclusive;
+            toExclusive = tmp;
+        }
+        final LocalDateTime fromF = from;
+        final LocalDateTime toF   = toExclusive;
+
         Boolean onlyActive = "OPEN".equals(status) ? Boolean.TRUE
                 : "CLOSED".equals(status) ? Boolean.FALSE : null;
 
         return cashOpeningRepository.findForReport(cashRegisterId).stream()
-                .filter(o -> from == null || !o.getOpenedAt().isBefore(from))
-                .filter(o -> to   == null || !o.getOpenedAt().isAfter(to))
+                .filter(o -> fromF == null || !o.getOpenedAt().isBefore(fromF))
+                .filter(o -> toF   == null || o.getOpenedAt().isBefore(toF))
                 .filter(o -> onlyActive == null || onlyActive.equals(o.getIsActive()))
                 .collect(Collectors.toList());
     }
@@ -414,10 +436,21 @@ public class ReportServiceImpl implements ReportService {
         List<ProductReportRowDTO> rows = products.stream().map(p -> {
             List<ProductVariant> variants = byProduct.getOrDefault(p.getId(), List.of());
             int stock = variants.stream().mapToInt(ProductVariant::getStock).sum();
+
+            // Precio efectivo por variante: override de la variante, o fallback al producto.
+            List<BigDecimal> variantPrices = variants.stream()
+                    .map(v -> v.getSalePrice() != null ? v.getSalePrice() : p.getSalePrice())
+                    .filter(Objects::nonNull)
+                    .toList();
+            BigDecimal minPrice = variantPrices.stream().min(BigDecimal::compareTo).orElse(p.getSalePrice());
+            BigDecimal maxPrice = variantPrices.stream().max(BigDecimal::compareTo).orElse(p.getSalePrice());
+
             return ProductReportRowDTO.builder()
                     .id(p.getId()).name(p.getName())
                     .categoryName(p.getCategory() != null ? p.getCategory().getName() : "—")
                     .salePrice(p.getSalePrice())
+                    .minVariantPrice(minPrice)
+                    .maxVariantPrice(maxPrice)
                     .variantCount(variants.size()).totalStock(stock)
                     .isActive(p.getIsActive()).build();
         }).collect(Collectors.toList());
@@ -566,15 +599,28 @@ public class ReportServiceImpl implements ReportService {
 
     // ── Etiquetas de filtros para el encabezado ───────────────────────────────
 
-    private String buildCashFiltersLabel(Long cashRegisterId, String startDate,
-                                          String endDate, String status) {
-        String hoy = LocalDate.now().format(DAY_FMT);
+    /**
+     * Etiqueta "Desde … Hasta …" para el encabezado del PDF.
+     * Convierte los instantes UTC a la zona del cliente ({@link #CLIENT_ZONE}) para
+     * que la fecha mostrada coincida con la que el usuario eligió en el DatePicker.
+     *
+     * <p>Para {@code endDate} (fin exclusivo = medianoche del día siguiente local)
+     * se resta 1 segundo antes de extraer la fecha, así se muestra el último día
+     * del rango tal como lo seleccionó el usuario.
+     */
+    private String buildCashFiltersLabel(Long cashRegisterId, LocalDateTime startDate,
+                                          LocalDateTime endDate, String status) {
+        String hoy = LocalDate.now(CLIENT_ZONE).format(DAY_FMT);
         List<String> parts = new ArrayList<>();
         parts.add("Caja: " + (cashRegisterId != null ? "#" + cashRegisterId : "Todas"));
-        parts.add("Desde: " + (startDate != null && !startDate.isBlank()
-                ? LocalDate.parse(startDate).format(DAY_FMT) : "Inicio de registros"));
-        parts.add("Hasta: " + (endDate != null && !endDate.isBlank()
-                ? LocalDate.parse(endDate).format(DAY_FMT) : "Hoy (" + hoy + ")"));
+        parts.add("Desde: " + (startDate != null
+                ? startDate.atOffset(ZoneOffset.UTC).atZoneSameInstant(CLIENT_ZONE)
+                        .toLocalDate().format(DAY_FMT)
+                : "Inicio de registros"));
+        parts.add("Hasta: " + (endDate != null
+                ? endDate.minusSeconds(1).atOffset(ZoneOffset.UTC).atZoneSameInstant(CLIENT_ZONE)
+                        .toLocalDate().format(DAY_FMT)
+                : "Hoy (" + hoy + ")"));
         parts.add("Estado: " + ("OPEN".equals(status)   ? "Abiertas"
                                : "CLOSED".equals(status) ? "Cerradas" : "Todas"));
         return String.join("  |  ", parts);
@@ -598,6 +644,22 @@ public class ReportServiceImpl implements ReportService {
 
     private String currency(BigDecimal v) {
         return v != null ? String.format("S/.%.2f", v) : "—";
+    }
+
+    /**
+     * Formatea el precio de un producto para el reporte considerando overrides por variante:
+     *   - Si las variantes tienen precios distintos → "S/.50.00 – S/.70.00"
+     *   - Si todas comparten precio (o no hay variantes) → "S/.50.00"
+     */
+    private String formatPriceRange(ProductReportRowDTO p) {
+        BigDecimal min = p.getMinVariantPrice();
+        BigDecimal max = p.getMaxVariantPrice();
+        if (min == null && max == null) return currency(p.getSalePrice());
+        if (min != null && max != null && min.compareTo(max) != 0) {
+            // Formato compacto: "S/.50.00 – 70.00" (sin repetir el símbolo de moneda).
+            return String.format("S/.%.2f – %.2f", min, max);
+        }
+        return currency(min != null ? min : max);
     }
 
     private BigDecimal safe(BigDecimal v) {

@@ -10,11 +10,10 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import { CashService } from "@/features/cash/services/cash.service";
 import InlineLoading from "@/shared/components/InlineLoading";
 import type { Sale, OrderStatus, PaymentMethod } from "@/features/cash/types/salesTypes";
+import { formatDateTime as fmtDate } from "@/shared/utils/dateFormat";
 
 const currency = (v: number) =>
     new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(v);
-
-const fmtDate = (d: string) => new Date(d).toLocaleString("es-PE");
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
     PENDING:   "Pendiente",

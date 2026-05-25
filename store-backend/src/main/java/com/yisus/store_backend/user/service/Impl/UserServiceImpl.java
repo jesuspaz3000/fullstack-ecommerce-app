@@ -81,12 +81,30 @@ public class UserServiceImpl implements UserService{
     @Override
     @Transactional
     public UserDTO createUser(CreateUserDTO request){
-        if(userRepository.findByEmail(request.getEmail()).isPresent()){
-            throw new RuntimeException("User already exists");
-        }
-
         Role role = roleRepository.findById(request.getRoleId())
                 .orElseThrow(() -> new RuntimeException("Role not found"));
+
+        // Si ya existe un usuario con ese email, decidir según su estado:
+        // - Activo   -> duplicado real, rechazar.
+        // - Inactivo (soft-deleted) -> reactivar con los nuevos datos (nombre,
+        //   password, rol) para evitar chocar con la restricción UNIQUE en la
+        //   columna email. Se invalidan tokens previos aumentando tokenVersion.
+        var existingOpt = userRepository.findByEmail(request.getEmail());
+        if (existingOpt.isPresent()) {
+            User existing = existingOpt.get();
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                throw new RuntimeException("User already exists");
+            }
+            existing.setName(request.getName());
+            existing.setPassword(passwordEncoder.encode(request.getPassword()));
+            existing.setRole(role);
+            existing.setIsActive(true);
+            existing.setTokenVersion((existing.getTokenVersion() == null ? 0L : existing.getTokenVersion()) + 1L);
+            User reactivated = userRepository.save(existing);
+            userRepository.flush();
+            log.info("User reactivated: {}", reactivated.getEmail());
+            return mapToDTO(reactivated);
+        }
 
         User user = User.builder()
                 .name(request.getName())
@@ -249,7 +267,7 @@ public class UserServiceImpl implements UserService{
 
     @Override
     @Transactional
-    public void changePassword(Long userId, ChangePasswordDTO dto) {
+    public User changePassword(Long userId, ChangePasswordDTO dto) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -262,8 +280,10 @@ public class UserServiceImpl implements UserService{
         }
 
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        userRepository.save(user);
-        log.info("Password changed for user id: {}", userId);
+        user.setTokenVersion((user.getTokenVersion() == null ? 0L : user.getTokenVersion()) + 1L);
+        User saved = userRepository.save(user);
+        log.info("Password changed for user id: {} (tokenVersion -> {})", userId, saved.getTokenVersion());
+        return saved;
     }
 
     @Override
@@ -272,8 +292,9 @@ public class UserServiceImpl implements UserService{
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setTokenVersion((user.getTokenVersion() == null ? 0L : user.getTokenVersion()) + 1L);
         userRepository.save(user);
-        log.info("Password reset by admin for user: {}", user.getEmail());
+        log.info("Password reset by admin for user: {} (tokenVersion -> {})", user.getEmail(), user.getTokenVersion());
     }
 
     public UserDTO mapToDTO(User user){

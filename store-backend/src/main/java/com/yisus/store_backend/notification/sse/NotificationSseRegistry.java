@@ -3,6 +3,7 @@ package com.yisus.store_backend.notification.sse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -76,6 +77,38 @@ public class NotificationSseRegistry {
 
         log.debug("SSE subscribed userId={}", userId);
         return emitter;
+    }
+
+    /**
+     * Envía un heartbeat (comentario SSE, líneas que empiezan con ":") a todos los
+     * emitters activos cada 15 segundos. Mantiene la conexión viva frente a
+     * reverse proxies (nginx, cloudflare, etc.) que cierran conexiones idle, y
+     * además detecta emitters muertos de forma temprana para poder limpiarlos.
+     * <p>
+     * El comentario no dispara eventos en el {@code EventSource} del navegador,
+     * así que no tiene efecto en el cliente.
+     */
+    @Scheduled(fixedDelay = 15_000L)
+    public void sendHeartbeat() {
+        if (emitters.isEmpty()) return;
+
+        for (Map.Entry<Long, Set<SseEmitter>> entry : emitters.entrySet()) {
+            Long userId = entry.getKey();
+            Set<SseEmitter> userEmitters = entry.getValue();
+            List<SseEmitter> dead = new ArrayList<>();
+            for (SseEmitter emitter : userEmitters) {
+                try {
+                    emitter.send(SseEmitter.event().comment("keepalive"));
+                } catch (Exception e) {
+                    dead.add(emitter);
+                }
+            }
+            if (!dead.isEmpty()) {
+                userEmitters.removeAll(dead);
+                if (userEmitters.isEmpty()) emitters.remove(userId);
+                log.debug("SSE heartbeat: removed {} dead emitters for userId={}", dead.size(), userId);
+            }
+        }
     }
 
     /** Envía un evento JSON a todos los emitters activos de un usuario. */

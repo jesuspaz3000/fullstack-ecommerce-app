@@ -10,12 +10,14 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -31,11 +33,14 @@ public class ReportController {
 
     @GetMapping("/cash-sessions")
     @PreAuthorize("hasAuthority('cash.read')")
-    @Operation(summary = "Lista de sesiones de caja para reporte")
+    @Operation(summary = "Lista de sesiones de caja para reporte",
+               description = "startDate/endDate opcionales como instantes ISO-8601 UTC: startDate inclusivo, "
+                       + "endDate exclusivo (p.ej. inicio del día local del cliente y medianoche del día "
+                       + "siguiente local, ambos convertidos a UTC).")
     public ResponseEntity<?> getCashSessions(
             @RequestParam(required = false) Long   cashRegisterId,
-            @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Integer offset,
@@ -54,8 +59,8 @@ public class ReportController {
     @Operation(summary = "Exportar historial de caja en PDF (A4)")
     public ResponseEntity<byte[]> getCashSessionsPdf(
             @RequestParam(required = false) Long   cashRegisterId,
-            @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @RequestParam(required = false) String status) {
         byte[] pdf = reportService.generateCashSessionsPdf(cashRegisterId, startDate, endDate, status);
         return pdfResponse(pdf, "reporte-caja.pdf");

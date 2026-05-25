@@ -34,6 +34,13 @@ spring:
       max-file-size: 50MB
       max-request-size: 50MB
 
+  jackson:
+    # Todas las fechas se serializan/parsean como UTC para que el frontend las
+    # muestre en la zona horaria local del usuario sin depender del servidor.
+    # El formato ISO-8601 con sufijo "Z" se fuerza desde JacksonConfig
+    # (serializer/deserializer custom para LocalDateTime).
+    time-zone: UTC
+
 jwt:
   # Secreto HS256: cadena HEX de 64 caracteres (32 bytes). Generar: openssl rand -hex 32
   secret: ${JWT_SECRET:123fa9ec6574f680ab5bce5259071c014148faebf537ccc3375fe603a428964f}

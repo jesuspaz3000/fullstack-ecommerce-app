@@ -89,9 +89,11 @@ export function SaleVariantPicker({
                 <Typography variant="body2" fontWeight={600} sx={{ wordBreak: "break-word" }}>
                     {variantLabel(v)}
                 </Typography>
-                <Typography variant="caption" color="text.secondary" display="block">
-                    SKU: {v.sku}
-                </Typography>
+                {v.sku ? (
+                    <Typography variant="caption" color="text.secondary" display="block">
+                        SKU: {v.sku}
+                    </Typography>
+                ) : null}
                 <Typography variant="body2" color="primary" fontWeight={700} sx={{ mt: 0.5 }}>
                     {formatCurrency(price)}
                 </Typography>

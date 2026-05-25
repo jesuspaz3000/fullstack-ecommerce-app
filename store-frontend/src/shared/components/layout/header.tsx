@@ -41,6 +41,7 @@ import { useState, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { useAuthStore } from "@/store/auth.store";
+import { parseBackendDate } from "@/shared/utils/dateFormat";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,7 +66,9 @@ function TypeIcon({ type }: { type: NotificationType }) {
 
 function timeAgo(dateStr: string): string {
     try {
-        return formatDistanceToNow(new Date(dateStr), { addSuffix: true, locale: es });
+        const d = parseBackendDate(dateStr);
+        if (!d) return dateStr;
+        return formatDistanceToNow(d, { addSuffix: true, locale: es });
     } catch {
         return dateStr;
     }

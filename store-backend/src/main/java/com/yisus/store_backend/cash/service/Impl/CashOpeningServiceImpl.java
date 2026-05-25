@@ -21,7 +21,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -121,27 +120,30 @@ public class CashOpeningServiceImpl implements CashOpeningService {
     public Page<CashSessionHistoryDTO> getSessionHistoryPaginated(
             Long cashRegisterId,
             Long sessionId,
-            LocalDate openedFrom,
-            LocalDate openedTo,
+            LocalDateTime openedFrom,
+            LocalDateTime openedTo,
             String customer,
             String seller,
             Pageable pageable) {
-        LocalDate from = openedFrom;
-        LocalDate to = openedTo;
+        // Los instantes llegan en UTC (la JVM corre con TZ=UTC y Spring parsea ISO-8601
+        // conservando los campos). Convención: openedFrom es inclusivo y openedTo
+        // exclusivo. Si el cliente se equivoca en el orden, se intercambian.
+        LocalDateTime from = openedFrom;
+        LocalDateTime to = openedTo;
         if (from != null && to != null && from.isAfter(to)) {
-            LocalDate tmp = from;
+            LocalDateTime tmp = from;
             from = to;
             to = tmp;
         }
 
         boolean filterOpenedFrom = from != null;
         LocalDateTime openedFromStart = filterOpenedFrom
-                ? from.atStartOfDay()
+                ? from
                 : LocalDateTime.of(1970, 1, 1, 0, 0);
 
         boolean filterOpenedTo = to != null;
         LocalDateTime openedToEndExclusive = filterOpenedTo
-                ? to.plusDays(1).atStartOfDay()
+                ? to
                 : LocalDateTime.of(2100, 1, 1, 0, 0);
 
         String cust = sanitizeLikeFragment(customer);

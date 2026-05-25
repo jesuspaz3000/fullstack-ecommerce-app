@@ -20,6 +20,20 @@ import type { ProductReportRow, ProductFilters } from "../types/reportsTypes";
 const currency = (v: number) =>
     new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(v);
 
+/**
+ * Muestra el precio de venta del producto considerando overrides de variantes:
+ *  - Si min != max → rango compacto "S/ 50.00 – 70.00".
+ *  - Si todas las variantes comparten precio (o no hay) → valor único.
+ */
+const formatProductPrice = (row: ProductReportRow): string => {
+    const min = row.minVariantPrice;
+    const max = row.maxVariantPrice;
+    if (min != null && max != null && min !== max) {
+        return `${currency(min)} – ${max.toFixed(2)}`;
+    }
+    return currency(min ?? max ?? row.salePrice);
+};
+
 const columns: TableColumn<ProductReportRow>[] = [
     { key: "name",         label: "Producto" },
     { key: "categoryName", label: "Categoría" },
@@ -27,7 +41,7 @@ const columns: TableColumn<ProductReportRow>[] = [
         key: "salePrice",
         label: "P.Venta",
         align: "right",
-        render: (row) => currency(row.salePrice),
+        render: (row) => formatProductPrice(row),
     },
     { key: "variantCount", label: "Variantes", align: "right" },
     {
@@ -71,7 +85,7 @@ function ProductMobileCard({ row }: { row: ProductReportRow }) {
                 <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", columnGap: 1.5, alignItems: "center" }}>
                     <Typography variant="body2" color="text.secondary">Precio venta</Typography>
                     <Typography variant="body2" fontWeight={600} sx={{ whiteSpace: "nowrap" }}>
-                        {currency(row.salePrice)}
+                        {formatProductPrice(row)}
                     </Typography>
                 </Box>
                 <Box sx={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", columnGap: 1.5, alignItems: "center" }}>

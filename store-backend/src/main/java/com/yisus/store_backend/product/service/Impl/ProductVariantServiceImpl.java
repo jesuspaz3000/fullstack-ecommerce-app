@@ -78,6 +78,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 .stock(dto.getStock() != null ? dto.getStock() : 0)
                 .minStock(dto.getMinStock() != null ? dto.getMinStock() : 5)
                 .sku(dto.getSku())
+                .salePrice(dto.getSalePrice())
+                .purchasePrice(dto.getPurchasePrice())
                 .build();
 
         ProductVariant savedVariant = productVariantRepository.save(variant);
@@ -112,7 +114,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
             }
             variant.setSku(dto.getSku());
         }
-        
+
+        // Para salePrice/purchasePrice se escribe siempre lo que venga en el DTO,
+        // incluido {@code null}, que significa "borrar el override y volver a heredar
+        // del producto". El frontend envía siempre ambos campos en la actualización.
+        variant.setSalePrice(dto.getSalePrice());
+        variant.setPurchasePrice(dto.getPurchasePrice());
+
         ProductVariant savedVariant = productVariantRepository.save(variant);
         productVariantRepository.flush();
         return convertToDTO(savedVariant);
@@ -221,6 +229,8 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 .stock(variant.getStock())
                 .minStock(variant.getMinStock())
                 .sku(variant.getSku())
+                .salePrice(variant.getSalePrice())
+                .purchasePrice(variant.getPurchasePrice())
                 .isActive(variant.getIsActive())
                 .images(variantImages.stream()
                         .map(img -> com.yisus.store_backend.product.dto.ProductImageDTO.builder()

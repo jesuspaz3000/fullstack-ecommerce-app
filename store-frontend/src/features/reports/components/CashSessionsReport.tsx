@@ -26,12 +26,10 @@ import type { CashRegisterRow } from "@/features/cash/types/cashTypes";
 import { ReportsService } from "../services/reports.service";
 import type { CashSessionReport, CashSessionFilters } from "../types/reportsTypes";
 import ReportSessionSales from "./ReportSessionSales";
+import { formatDateTime as fmtDt } from "@/shared/utils/dateFormat";
 
 const currency = (v: number | null | undefined) =>
     v == null ? "—" : new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(v);
-
-const fmtDt = (d: string | null | undefined) =>
-    d ? new Date(d).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—";
 
 function SessionDetailLine({ label, value }: { label: string; value: string }) {
     return (
@@ -218,14 +216,23 @@ export default function CashSessionsReport() {
         setFilters((f) => ({ ...f, ...patch }));
     };
 
+    // Convenio con el backend: instantes ISO-8601 UTC.
+    //   - startDate: inicio del día local elegido (inclusivo).
+    //   - endDate: inicio del día SIGUIENTE local (exclusivo).
+    // dayjs trabaja en la zona del navegador y toISOString() emite el instante
+    // UTC equivalente ("Z"). El backend corre con TZ=UTC y guarda las fechas en UTC.
     const handleFromDate = (value: Dayjs | null) => {
         setFromDate(value);
-        handleFilterChange({ startDate: value ? value.format("YYYY-MM-DD") : "" });
+        handleFilterChange({
+            startDate: value ? value.startOf("day").toISOString() : "",
+        });
     };
 
     const handleToDate = (value: Dayjs | null) => {
         setToDate(value);
-        handleFilterChange({ endDate: value ? value.format("YYYY-MM-DD") : "" });
+        handleFilterChange({
+            endDate: value ? value.add(1, "day").startOf("day").toISOString() : "",
+        });
     };
 
     const handleExport = async () => {

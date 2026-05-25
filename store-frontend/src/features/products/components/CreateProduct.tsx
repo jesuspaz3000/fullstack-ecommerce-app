@@ -101,6 +101,10 @@ interface VariantDraft {
     stock: string;
     minStock: string;
     sku: string;
+    /** Vacío = hereda del producto; con número = override específico de la variante. */
+    salePrice: string;
+    /** Vacío = hereda del producto; con número = override específico de la variante. */
+    purchasePrice: string;
     imageFiles: File[];
     imagePreviews: { url: string; name: string }[];
 }
@@ -118,6 +122,8 @@ function emptyVariant(): VariantDraft {
         stock: "",
         minStock: "",
         sku: "",
+        salePrice: "",
+        purchasePrice: "",
         imageFiles: [],
         imagePreviews: [],
     };
@@ -237,7 +243,10 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
             if (vd.showNewColor && !vd.newColorName.trim()) errs[`${p}_newColorName`] = "Ingresa el nombre del color";
             if (vd.showNewSize && !vd.newSizeName.trim())   errs[`${p}_newSizeName`]  = "Ingresa el nombre de la talla";
             if (!vd.stock || Number(vd.stock) < 0)         errs[`${p}_stock`]        = "Requerido";
-            if (!vd.sku.trim())                             errs[`${p}_sku`]          = "Requerido";
+            if (vd.salePrice.trim() !== "" && (Number.isNaN(Number(vd.salePrice)) || Number(vd.salePrice) < 0))
+                errs[`${p}_salePrice`] = "Precio inválido";
+            if (vd.purchasePrice.trim() !== "" && (Number.isNaN(Number(vd.purchasePrice)) || Number(vd.purchasePrice) < 0))
+                errs[`${p}_purchasePrice`] = "Precio inválido";
         });
 
         setErrors(errs);
@@ -287,10 +296,19 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                     productId: product.id,
                     stock:     parseInt(vd.stock, 10),
                     minStock:  parseInt(vd.minStock, 10) || 5,
-                    sku:       vd.sku.trim(),
                 };
+                const skuValue = vd.sku.trim();
+                if (skuValue !== "") payload.sku = skuValue;
                 if (colorId !== undefined) payload.colorId = colorId;
                 if (sizeId !== undefined) payload.sizeId = sizeId;
+                if (vd.salePrice.trim() !== "") {
+                    const sp = parseFloat(vd.salePrice);
+                    if (Number.isFinite(sp) && sp >= 0) payload.salePrice = sp;
+                }
+                if (vd.purchasePrice.trim() !== "") {
+                    const pp = parseFloat(vd.purchasePrice);
+                    if (Number.isFinite(pp) && pp >= 0) payload.purchasePrice = pp;
+                }
 
                 const variant = await createVariant(payload);
                 if (!variant) throw new Error("variant");
@@ -513,8 +531,7 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                     <Box sx={{ minWidth: 0, flex: { sm: 1 } }}>
                         <SectionTitle sx={{ mb: 0.5 }}>Variantes</SectionTitle>
                         <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 560 }}>
-                            Cada variante se guarda al crear el producto. Color y talla son opcionales; <strong>stock inicial</strong> y{" "}
-                            <strong>SKU</strong> son obligatorios. Puedes añadir varias antes de guardar.
+                            Cada variante se guarda al crear el producto. Color, talla y SKU son opcionales; solo el <strong>stock inicial</strong> es obligatorio. Puedes añadir varias antes de guardar.
                         </Typography>
                     </Box>
                     <Button
@@ -716,14 +733,40 @@ export default function CreateProduct({ open, onClose, onSuccess }: Props) {
                                     helperText="Alerta por variante"
                                 />
                                 <TextField
-                                    label="SKU *"
+                                    label="SKU"
                                     value={vd.sku}
                                     onChange={(e) => setV(vd.rowId, { sku: e.target.value })}
                                     size="small"
-                                    required
                                     sx={{ flex: "1 1 200px", minWidth: 160 }}
                                     error={!!errors[`${ep}_sku`]}
-                                    helperText={errors[`${ep}_sku`] ?? "Identificador único de esta variante"}
+                                    helperText={errors[`${ep}_sku`] ?? "Opcional · identificador único de esta variante"}
+                                />
+                            </Box>
+
+                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2, alignItems: "flex-start" }}>
+                                <TextField
+                                    label="Precio de venta (variante)"
+                                    value={vd.salePrice}
+                                    onChange={(e) => setV(vd.rowId, { salePrice: e.target.value })}
+                                    onKeyDown={blockNegativeKeys}
+                                    size="small"
+                                    type="number"
+                                    sx={{ width: { xs: "100%", sm: 200 } }}
+                                    slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                                    error={!!errors[`${ep}_salePrice`]}
+                                    helperText={errors[`${ep}_salePrice`] ?? `Opcional. Vacío = usa el del producto (${salePrice || "—"})`}
+                                />
+                                <TextField
+                                    label="Precio de compra (variante)"
+                                    value={vd.purchasePrice}
+                                    onChange={(e) => setV(vd.rowId, { purchasePrice: e.target.value })}
+                                    onKeyDown={blockNegativeKeys}
+                                    size="small"
+                                    type="number"
+                                    sx={{ width: { xs: "100%", sm: 220 } }}
+                                    slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                                    error={!!errors[`${ep}_purchasePrice`]}
+                                    helperText={errors[`${ep}_purchasePrice`] ?? `Opcional. Vacío = usa el del producto (${purchasePrice || "—"})`}
                                 />
                             </Box>
 

@@ -14,6 +14,10 @@ export interface StoreConfig {
     storeRuc: string | null;
     storeAddress: string | null;
     logoUrl: string | null;
+    printerName: string | null;
+    printerIp: string | null;
+    printerPort: number | null;
+    printerType: string | null;
     updatedAt: string;
 }
 
@@ -21,4 +25,8 @@ export interface StoreConfigUpdate {
     storeName: string;
     storeRuc?: string;
     storeAddress?: string;
+    printerName?: string;
+    printerIp?: string;
+    printerPort?: number;
+    printerType?: string;
 }

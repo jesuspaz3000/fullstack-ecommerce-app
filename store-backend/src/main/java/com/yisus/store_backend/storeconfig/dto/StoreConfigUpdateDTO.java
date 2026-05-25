@@ -16,4 +16,12 @@ public class StoreConfigUpdateDTO {
     private String storeRuc;
 
     private String storeAddress;
+
+    private String printerName;
+
+    private String printerIp;
+
+    private Integer printerPort;
+
+    private String printerType;
 }

@@ -37,14 +37,42 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional
     public ProductDTO createProduct(ProductCreateDTO request) {
-        if(productRepository.findByName(request.getName()).isPresent()){
-            throw new DuplicateKeyException("Product already exists");
+        // Bug #6 fix: validar que el descuento esté entre 0 y 100 ANTES de guardar
+        if (request.getDiscountPercentage() != null) {
+            validateDiscountPercentage(request.getDiscountPercentage());
         }
-        
+
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new RuntimeException("Category not found"));
-        
-        
+
+        // Si ya existe un producto con ese nombre, decidir según su estado:
+        // - Activo  -> duplicado real, rechazar.
+        // - Inactivo (soft-deleted) -> reactivar con los nuevos datos para evitar
+        //   chocar con la restricción UNIQUE en la columna name.
+        var existingOpt = productRepository.findByName(request.getName());
+        if (existingOpt.isPresent()) {
+            Product existing = existingOpt.get();
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                throw new DuplicateKeyException("Product already exists");
+            }
+
+            existing.setPurchasePrice(request.getPurchasePrice());
+            existing.setSalePrice(request.getSalePrice());
+            existing.setDiscountPercentage(request.getDiscountPercentage());
+            existing.setDiscountStart(request.getDiscountStart());
+            existing.setDiscountEnd(request.getDiscountEnd());
+            existing.setIsFeatured(request.getIsFeatured());
+            existing.setTotalSold(0L);
+            existing.setCategory(category);
+            existing.setMinStock(request.getMinStock());
+            existing.setIsActive(true);
+
+            Product reactivated = productRepository.save(existing);
+            productRepository.flush();
+            log.info("Product '{}' reactivated and updated successfully", reactivated.getName());
+            return convertToDTO(reactivated);
+        }
+
         Product product = Product.builder()
                 .name(request.getName())
                 .purchasePrice(request.getPurchasePrice())
@@ -58,15 +86,11 @@ public class ProductServiceImpl implements ProductService {
                 .minStock(request.getMinStock())
                 .isActive(true)
                 .build();
-        
-        // Bug #6 fix: validar que el descuento esté entre 0 y 100 ANTES de guardar
-        if (request.getDiscountPercentage() != null) {
-            validateDiscountPercentage(request.getDiscountPercentage());
-        }
 
         Product savedProduct = productRepository.save(product);
         productRepository.flush();
-        
+        log.info("Product '{}' created successfully", savedProduct.getName());
+
         return convertToDTO(savedProduct);
     }
 
@@ -141,11 +165,23 @@ public class ProductServiceImpl implements ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        // Desactivar todas las variantes del producto para evitar variantes huérfanas
+        // Desactivar todas las variantes del producto para evitar variantes huérfanas.
+        // Además, liberar el SKU (columna UNIQUE) para que pueda reutilizarse al crear
+        // una nueva variante con ese mismo código más tarde. Preservamos el valor
+        // anterior como histórico en el propio registro renombrándolo con un prefijo.
         List<ProductVariant> variants = productVariantRepository.findByProductId(id);
         if (!variants.isEmpty()) {
-            variants.forEach(v -> v.setIsActive(false));
+            long ts = System.currentTimeMillis();
+            variants.forEach(v -> {
+                v.setIsActive(false);
+                String currentSku = v.getSku();
+                if (currentSku != null && !currentSku.isBlank()
+                        && !currentSku.startsWith("DEL_")) {
+                    v.setSku("DEL_" + ts + "_" + v.getId() + "_" + currentSku);
+                }
+            });
             productVariantRepository.saveAll(variants);
+            productVariantRepository.flush();
             log.info("Deactivated {} variant(s) for product '{}'", variants.size(), product.getName());
         }
 
@@ -247,6 +283,8 @@ public class ProductServiceImpl implements ProductService {
                 .stock(variant.getStock())
                 .minStock(variant.getMinStock())
                 .sku(variant.getSku())
+                .salePrice(variant.getSalePrice())
+                .purchasePrice(variant.getPurchasePrice())
                 .isActive(variant.getIsActive())
                 .images(images)
                 .createdAt(variant.getCreatedAt())

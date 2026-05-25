@@ -38,7 +38,7 @@ public interface UserService {
 
     public UserDTO deleteAvatar(Long userId);
 
-    public void changePassword(Long userId, ChangePasswordDTO dto);
+    public User changePassword(Long userId, ChangePasswordDTO dto);
 
     public void adminChangePassword(Long userId, String newPassword);
 }

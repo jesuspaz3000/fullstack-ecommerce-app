@@ -57,4 +57,8 @@ export const SettingsService = {
         const res = await ApiService.delete<StoreConfig>("/store-config/logo");
         return res.data;
     },
+
+    testPrinterConnection: async (printerIp: string, printerPort: number): Promise<void> => {
+        await ApiService.post("/store-config/printer/test", { printerIp, printerPort });
+    },
 };

@@ -16,5 +16,9 @@ public class StoreConfigDTO {
     private String storeRuc;
     private String storeAddress;
     private String logoUrl;
+    private String printerName;
+    private String printerIp;
+    private Integer printerPort;
+    private String printerType;
     private LocalDateTime updatedAt;
 }

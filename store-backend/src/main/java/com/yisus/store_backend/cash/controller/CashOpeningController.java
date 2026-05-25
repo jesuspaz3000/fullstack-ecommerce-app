@@ -9,7 +9,7 @@ import com.yisus.store_backend.cash.service.CashOpeningService;
 import com.yisus.store_backend.common.dto.PaginatedResponse;
 import com.yisus.store_backend.common.util.PaginationValidator;
 import jakarta.servlet.http.HttpServletRequest;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -91,15 +91,18 @@ public class CashOpeningController {
     @Operation(summary = "Historial de sesiones",
                description = "Lista completa, o paginada con limit/offset. " +
                        "cashRegisterId opcional filtra por caja física. " +
-                       "Filtros opcionales: sessionId, openedFrom/openedTo (fecha de apertura), customer y seller (coinciden con ventas de la sesión).")
+                       "Filtros opcionales: sessionId, openedFrom/openedTo (instantes ISO-8601 UTC: "
+                       + "openedFrom inclusivo, openedTo exclusivo — típicamente inicio del día local "
+                       + "y medianoche del día siguiente local), customer y seller "
+                       + "(coinciden con ventas de la sesión).")
     @ApiResponse(responseCode = "200", description = "History retrieved")
     public ResponseEntity<?> history(
             @RequestParam(required = false) Long cashRegisterId,
             @RequestParam(required = false) Integer limit,
             @RequestParam(required = false) Integer offset,
             @RequestParam(required = false) Long sessionId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate openedFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate openedTo,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime openedFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime openedTo,
             @RequestParam(required = false) String customer,
             @RequestParam(required = false) String seller,
             HttpServletRequest request) {

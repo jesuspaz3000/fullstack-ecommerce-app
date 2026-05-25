@@ -40,20 +40,37 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public RoleDTO createRole(RoleCreateUpdateDTO roleDTO) {
-        if(roleRepository.findByName(roleDTO.getName()).isPresent()){
-            throw new IllegalArgumentException("Role name already exists");
+        Set<Permission> permissions = (roleDTO.getPermissionIds() != null && !roleDTO.getPermissionIds().isEmpty())
+                ? permissionRepository.findByIdIn(roleDTO.getPermissionIds()).stream()
+                        .filter(p -> !OBSOLETE_SUPPLIERS_MODULE.equals(p.getModule()))
+                        .collect(Collectors.toCollection(HashSet::new))
+                : new HashSet<>();
+
+        // Si ya existe un rol con ese nombre, decidir según su estado:
+        // - Activo   -> duplicado real, rechazar.
+        // - Inactivo (soft-deleted) -> reactivar con los nuevos datos para
+        //   evitar chocar con la restricción UNIQUE en la columna name.
+        var existingOpt = roleRepository.findByName(roleDTO.getName());
+        if (existingOpt.isPresent()) {
+            Role existing = existingOpt.get();
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                throw new IllegalArgumentException("Role name already exists");
+            }
+            existing.setDescription(roleDTO.getDescription());
+            existing.setPermissions(permissions);
+            existing.setIsActive(true);
+            Role reactivated = roleRepository.save(existing);
+            roleRepository.flush();
+            log.info("Role reactivated: {}", reactivated.getName());
+            return mapToDTO(reactivated);
         }
+
         Role role = Role.builder()
                 .name(roleDTO.getName())
                 .description(roleDTO.getDescription())
                 .build();
+        role.setPermissions(permissions);
 
-        if(roleDTO.getPermissionIds() != null && !roleDTO.getPermissionIds().isEmpty()){
-            Set<Permission> permissions = permissionRepository.findByIdIn(roleDTO.getPermissionIds()).stream()
-                    .filter(p -> !OBSOLETE_SUPPLIERS_MODULE.equals(p.getModule()))
-                    .collect(Collectors.toCollection(HashSet::new));
-            role.setPermissions(permissions);
-        }
         Role savedRole = roleRepository.save(role);
         roleRepository.flush();
         log.info("Role created: {}", savedRole.getName());

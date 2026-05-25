@@ -27,6 +27,7 @@ import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import { SaleService } from "../../services/sale.service";
 import { Sale, OrderStatus, PaymentMethod } from "../../types/salesTypes";
 import { toMediaUrl } from "@/shared/utils/mediaUrl";
+import { formatDateTime } from "@/shared/utils/dateFormat";
 import {
     adminFormDialogActionsSx,
     adminFormDialogContentSx,
@@ -67,8 +68,7 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 const formatCurrency = (value: number) =>
     new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN", maximumFractionDigits: 2 }).format(value);
 
-const formatDate = (iso: string) =>
-    new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" }).format(new Date(iso));
+const formatDate = (iso: string) => formatDateTime(iso);
 
 function DetailLine({ label, children }: { label: string; children: React.ReactNode }) {
     return (

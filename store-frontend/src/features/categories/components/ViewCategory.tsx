@@ -22,15 +22,13 @@ import {
 } from "@/shared/mui/adminFormDialog";
 import { CategoryService } from "../services/categories.service";
 import type { Category } from "../types/categoriesTypes";
+import { formatDateTime as fmtDateTime } from "@/shared/utils/dateFormat";
 
 interface Props {
     open: boolean;
     categoryId: number | null;
     onClose: () => void;
 }
-
-const fmtDateTime = (d: string | undefined) =>
-    d ? new Date(d).toLocaleString("es-PE", { dateStyle: "short", timeStyle: "short" }) : "—";
 
 function Row({ label, value }: { label: string; value: string }) {
     return (

@@ -178,7 +178,9 @@ export default function ViewProduct({ open, productId, onClose }: Props) {
                                         }}
                                     >
                                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 1 }}>
-                                            <Chip label={`SKU: ${variant.sku}`} size="small" sx={{ maxWidth: "100%" }} />
+                                            {variant.sku ? (
+                                                <Chip label={`SKU: ${variant.sku}`} size="small" sx={{ maxWidth: "100%" }} />
+                                            ) : null}
                                             <Chip label={`Stock: ${variant.stock}`} size="small" />
                                             <Chip
                                                 label={`Color: ${variant.colorName ?? "Sin color"}`}
@@ -195,7 +197,7 @@ export default function ViewProduct({ open, productId, onClose }: Props) {
                                         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                                             {(variant.images ?? []).map((img) => {
                                                 const src = toMediaUrl(img.url);
-                                                const alt = `Variante ${variant.sku} — imagen`;
+                                                const alt = `Variante ${variant.sku ?? variant.id} — imagen`;
                                                 return (
                                                     <VariantImageThumb
                                                         key={img.id}

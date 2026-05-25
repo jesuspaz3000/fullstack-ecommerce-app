@@ -22,14 +22,26 @@ public class SizeServiceImpl implements SizeService {
     @Override
     @Transactional
     public SizeDTO createSize(SizeCreateDTO sizeCreateDTO) {
-        if (sizeRepository.existsByName(sizeCreateDTO.getName())) {
-            throw new DuplicateKeyException("Size already exists");
+        // Si ya existe una talla con ese nombre, decidir según su estado:
+        // - Activa   -> duplicado real, rechazar.
+        // - Inactiva (soft-deleted) -> reactivar para evitar chocar con la
+        //   restricción UNIQUE en la columna name.
+        var existingOpt = sizeRepository.findByName(sizeCreateDTO.getName());
+        if (existingOpt.isPresent()) {
+            Size existing = existingOpt.get();
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                throw new DuplicateKeyException("Size already exists");
+            }
+            existing.setIsActive(true);
+            Size reactivated = sizeRepository.save(existing);
+            sizeRepository.flush();
+            return convertToDTO(reactivated);
         }
-        
+
         Size size = Size.builder()
                 .name(sizeCreateDTO.getName())
                 .build();
-        
+
         Size savedSize = sizeRepository.save(size);
         sizeRepository.flush();
         return convertToDTO(savedSize);

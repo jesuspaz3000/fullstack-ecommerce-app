@@ -84,7 +84,8 @@ public class AuthController {
         if (refresh == null || refresh.isBlank()) {
             throw new BadCredentialsException("Refresh token is required");
         }
-        AuthSessionResult result = authService.refreshToken(refresh);
+        String oldAccess = readCookie(request, AuthCookieNames.ACCESS_TOKEN);
+        AuthSessionResult result = authService.refreshToken(refresh, oldAccess);
         authCookieService.addAuthCookies(response, result.accessToken(), result.refreshToken());
         return ResponseEntity.ok(LoginResponse.builder().user(result.user()).build());
     }

@@ -42,7 +42,7 @@ import {
 import { ProductService }               from "../services/products.service";
 import { ProductsVariantImageService }  from "../services/productsVariantImage.service";
 import { Product }                      from "../types/productsTypes";
-import { CreateProductsVariant }        from "../types/productsVariantTypes";
+import { CreateProductsVariant, UpdateProductsVariant } from "../types/productsVariantTypes";
 import { Color }                        from "../types/colorsTypes";
 import { Size }                         from "../types/sizesTypes";
 import { toMediaUrl }                   from "@/shared/utils/mediaUrl";
@@ -69,6 +69,10 @@ interface VariantEdit {
     stock:           string;
     minStock:        string;
     sku:             string;
+    /** Vacío = hereda del producto; con número = override específico de la variante. */
+    salePrice:       string;
+    /** Vacío = hereda del producto; con número = override específico de la variante. */
+    purchasePrice:   string;
 }
 
 interface Props {
@@ -127,6 +131,10 @@ interface VariantDraft {
     stock: string;
     minStock: string;
     sku: string;
+    /** Vacío = hereda del producto. */
+    salePrice: string;
+    /** Vacío = hereda del producto. */
+    purchasePrice: string;
     imageFiles: File[];
     imagePreviews: { url: string; name: string }[];
 }
@@ -144,6 +152,8 @@ function emptyVariantDraft(): VariantDraft {
         stock: "",
         minStock: "5",
         sku: "",
+        salePrice: "",
+        purchasePrice: "",
         imageFiles: [],
         imagePreviews: [],
     };
@@ -263,7 +273,9 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                     newSizeName:     "",
                     stock:           String(v.stock),
                     minStock:        String(v.minStock ?? 5),
-                    sku:             v.sku,
+                    sku:             v.sku ?? "",
+                    salePrice:       v.salePrice != null ? String(v.salePrice) : "",
+                    purchasePrice:   v.purchasePrice != null ? String(v.purchasePrice) : "",
                 };
             });
             setVariantEdits(edits);
@@ -516,7 +528,6 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
             if (vd.showNewColor && !vd.newColorName.trim()) errs[`${p}_newColorName`] = "Ingresa el nombre del color";
             if (vd.showNewSize && !vd.newSizeName.trim())   errs[`${p}_newSizeName`]  = "Ingresa el nombre de la talla";
             if (!vd.stock.trim() || Number(vd.stock) < 0)   errs[`${p}_stock`]        = "Requerido";
-            if (!vd.sku.trim())                             errs[`${p}_sku`]          = "Requerido";
         });
 
         setErrors(errs);
@@ -564,25 +575,41 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
 
                 const stockVal = parseInt(edit.stock, 10) || 0;
                 const skuVal   = edit.sku.trim();
+                const prevSku  = (v.sku ?? "").trim();
                 const prevColor = v.colorId ?? null;
                 const prevSize  = v.sizeId ?? null;
                 const nextColor = resolvedColorId ?? null;
                 const nextSize  = resolvedSizeId ?? null;
+
+                const salePriceVal: number | null = edit.salePrice.trim() !== ""
+                    ? (Number.isFinite(Number(edit.salePrice)) ? Number(edit.salePrice) : null)
+                    : null;
+                const purchasePriceVal: number | null = edit.purchasePrice.trim() !== ""
+                    ? (Number.isFinite(Number(edit.purchasePrice)) ? Number(edit.purchasePrice) : null)
+                    : null;
+                const prevSalePrice: number | null = v.salePrice != null ? Number(v.salePrice) : null;
+                const prevPurchasePrice: number | null = v.purchasePrice != null ? Number(v.purchasePrice) : null;
+
                 const changed =
                     nextColor !== prevColor ||
                     nextSize !== prevSize ||
                     stockVal !== v.stock ||
-                    skuVal !== v.sku;
+                    skuVal !== prevSku ||
+                    salePriceVal !== prevSalePrice ||
+                    purchasePriceVal !== prevPurchasePrice;
 
                 const minStockVal = parseInt(edit.minStock, 10) || 5;
                 if (changed || minStockVal !== (v.minStock ?? 5)) {
-                    await updateVariant(v.id, {
+                    const updatePayload: UpdateProductsVariant = {
                         stock:    stockVal,
                         minStock: minStockVal,
-                        sku:      skuVal,
+                        salePrice:     salePriceVal,
+                        purchasePrice: purchasePriceVal,
                         ...(resolvedColorId !== undefined ? { colorId: resolvedColorId } : {}),
                         ...(resolvedSizeId !== undefined ? { sizeId: resolvedSizeId } : {}),
-                    });
+                    };
+                    if (skuVal !== "") updatePayload.sku = skuVal;
+                    await updateVariant(v.id, updatePayload);
                 }
             }
 
@@ -608,10 +635,19 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                     productId: productDetail.id,
                     stock:     parseInt(vd.stock, 10),
                     minStock:  parseInt(vd.minStock, 10) || 5,
-                    sku:       vd.sku.trim(),
                 };
+                const draftSku = vd.sku.trim();
+                if (draftSku !== "") payload.sku = draftSku;
                 if (colorId !== undefined) payload.colorId = colorId;
                 if (sizeId !== undefined) payload.sizeId = sizeId;
+                if (vd.salePrice.trim() !== "") {
+                    const sp = parseFloat(vd.salePrice);
+                    if (Number.isFinite(sp) && sp >= 0) payload.salePrice = sp;
+                }
+                if (vd.purchasePrice.trim() !== "") {
+                    const pp = parseFloat(vd.purchasePrice);
+                    if (Number.isFinite(pp) && pp >= 0) payload.purchasePrice = pp;
+                }
                 const created = await createVariant(payload);
                 if (!created) throw new Error("variant");
                 if (vd.imageFiles.length > 0) {
@@ -841,7 +877,7 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                 <SectionTitle sx={{ mb: 0.5 }}>Variantes</SectionTitle>
                                 <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 560 }}>
                                     Edita variantes existentes o añade borradores con «Agregar variante». Las filas vacías se ignoran; las que tengan{" "}
-                                    <strong>stock</strong> y <strong>SKU</strong> se crean al guardar.
+                                    <strong>stock</strong> se crean al guardar. El SKU es opcional.
                                 </Typography>
                             </Box>
                             <Button
@@ -904,7 +940,7 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
                                             <Box sx={{ width: 13, height: 13, borderRadius: "50%", bgcolor: v.colorHexCode ?? "action.hover", border: "1px solid", borderColor: "divider", flexShrink: 0 }} />
                                             <Typography variant="body2" fontWeight={600}>{v.colorName ?? "Sin color"} / {v.sizeName ?? "Sin talla"}</Typography>
-                                            <Typography variant="caption" color="text.secondary">Stock: {v.stock} · SKU: {v.sku}</Typography>
+                                            <Typography variant="caption" color="text.secondary">Stock: {v.stock}{v.sku ? ` · SKU: ${v.sku}` : ""}</Typography>
                                         </Box>
                                         <Tooltip title="Eliminar variante">
                                             <IconButton
@@ -1062,6 +1098,31 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                             size="small"
                                             sx={{ flex: "1 1 200px", minWidth: 160 }}
                                             helperText="Identificador único"
+                                        />
+                                    </Box>
+
+                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2, alignItems: "flex-start" }}>
+                                        <TextField
+                                            label="Precio de venta (variante)"
+                                            value={edit.salePrice}
+                                            onChange={(e) => setVEdit(v.id, { salePrice: e.target.value })}
+                                            onKeyDown={blockNegativeKeys}
+                                            size="small"
+                                            type="number"
+                                            sx={{ width: { xs: "100%", sm: 200 } }}
+                                            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                                            helperText={`Opcional. Vacío = usa el del producto (${salePrice || "—"})`}
+                                        />
+                                        <TextField
+                                            label="Precio de compra (variante)"
+                                            value={edit.purchasePrice}
+                                            onChange={(e) => setVEdit(v.id, { purchasePrice: e.target.value })}
+                                            onKeyDown={blockNegativeKeys}
+                                            size="small"
+                                            type="number"
+                                            sx={{ width: { xs: "100%", sm: 220 } }}
+                                            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                                            helperText={`Opcional. Vacío = usa el del producto (${purchasePrice || "—"})`}
                                         />
                                     </Box>
 
@@ -1376,14 +1437,38 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                                             }
                                         />
                                         <TextField
-                                            label="SKU *"
+                                            label="SKU"
                                             value={vd.sku}
                                             onChange={(e) => setDraft(vd.rowId, { sku: e.target.value })}
                                             size="small"
-                                            required
                                             sx={{ flex: "1 1 200px", minWidth: 160 }}
                                             error={!!errors[`${ep}_sku`]}
-                                            helperText={errors[`${ep}_sku`] ?? "Identificador único de esta variante"}
+                                            helperText={errors[`${ep}_sku`] ?? "Opcional · identificador único de esta variante"}
+                                        />
+                                    </Box>
+
+                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2, alignItems: "flex-start" }}>
+                                        <TextField
+                                            label="Precio de venta (variante)"
+                                            value={vd.salePrice}
+                                            onChange={(e) => setDraft(vd.rowId, { salePrice: e.target.value })}
+                                            onKeyDown={blockNegativeKeys}
+                                            size="small"
+                                            type="number"
+                                            sx={{ width: { xs: "100%", sm: 200 } }}
+                                            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                                            helperText={`Opcional. Vacío = usa el del producto (${salePrice || "—"})`}
+                                        />
+                                        <TextField
+                                            label="Precio de compra (variante)"
+                                            value={vd.purchasePrice}
+                                            onChange={(e) => setDraft(vd.rowId, { purchasePrice: e.target.value })}
+                                            onKeyDown={blockNegativeKeys}
+                                            size="small"
+                                            type="number"
+                                            sx={{ width: { xs: "100%", sm: 220 } }}
+                                            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                                            helperText={`Opcional. Vacío = usa el del producto (${purchasePrice || "—"})`}
                                         />
                                     </Box>
 

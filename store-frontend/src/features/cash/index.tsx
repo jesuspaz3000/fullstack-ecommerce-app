@@ -74,14 +74,12 @@ import {
     adminFormDialogPaperSx,
     adminFormDialogTitleRowSx,
 } from "@/shared/mui/adminFormDialog";
+import { formatDateTime as fmtDate } from "@/shared/utils/dateFormat";
 
 const currency = (v: number | null | undefined) =>
     v == null
         ? "—"
         : new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(v);
-
-const fmtDate = (d: string | null | undefined) =>
-    d ? new Date(d).toLocaleString("es-PE") : "—";
 
 /** Ancho del panel lateral de filtros (historial de caja). */
 const HISTORY_FILTERS_PANEL_PX = 320;
@@ -95,7 +93,7 @@ const HISTORY_TOOLBAR_ACTION_SX = {
     boxSizing: "border-box" as const,
 };
 
-interface SnackState { open: boolean; message: string; severity: "success" | "error" }
+interface SnackState { open: boolean; message: string; severity: "success" | "error" | "info" }
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
 function StatCard({
@@ -296,6 +294,7 @@ export default function Cash() {
     const [tab, setTab]               = useState(0);
     const [loading, setLoading]       = useState(true);
     const [registers, setRegisters]   = useState<CashRegisterRow[]>([]);
+    const [registersLoaded, setRegistersLoaded] = useState(false);
     const [selectedRegisterId, setSelectedRegisterId] = useState<number | "">("");
     const [newRegisterName, setNewRegisterName]     = useState("");
     const [creatingRegister, setCreatingRegister]     = useState(false);
@@ -343,7 +342,7 @@ export default function Cash() {
 
     // Snackbar
     const [snackbar, setSnackbar] = useState<SnackState>({ open: false, message: "", severity: "success" });
-    const showSnack = (message: string, severity: "success" | "error" = "success") =>
+    const showSnack = (message: string, severity: "success" | "error" | "info" = "success") =>
         setSnackbar({ open: true, message, severity });
 
     // Real-time difference
@@ -377,6 +376,8 @@ export default function Cash() {
             }
         } catch {
             setRegisters([]);
+        } finally {
+            setRegistersLoaded(true);
         }
     }, []);
 
@@ -406,6 +407,7 @@ export default function Cash() {
 
     // ── Load status ────────────────────────────────────────────────────────────
     const loadStatus = useCallback(async () => {
+        if (!registersLoaded) return;
         if (selectedId == null) {
             setLoading(false);
             setStatus(null);
@@ -421,7 +423,7 @@ export default function Cash() {
             setLoading(false);
         }
         await Promise.all([loadGlobalBalance(), loadGlobalSummary()]);
-    }, [selectedId, loadGlobalBalance, loadGlobalSummary]);
+    }, [selectedId, registersLoaded, loadGlobalBalance, loadGlobalSummary]);
 
     const loadReasons = useCallback(async () => {
         try {
@@ -432,12 +434,18 @@ export default function Cash() {
         }
     }, []);
 
+    // Convenio con el backend: instantes ISO-8601 UTC.
+    //   - openedFrom: inicio del día local elegido (inclusivo).
+    //   - openedTo: inicio del día SIGUIENTE local (exclusivo), así el filtro incluye
+    //     todo el día seleccionado sin tener que lidiar con 23:59:59.999.
+    // dayjs resuelve ambos en la zona horaria del navegador y toISOString() los
+    // convierte al instante UTC equivalente ("Z"). El backend tiene TZ=UTC.
     const historyOpenedFromStr = useMemo(
-        () => (historyFromDate ? historyFromDate.format("YYYY-MM-DD") : ""),
+        () => (historyFromDate ? historyFromDate.startOf("day").toISOString() : ""),
         [historyFromDate],
     );
     const historyOpenedToStr = useMemo(
-        () => (historyToDate ? historyToDate.format("YYYY-MM-DD") : ""),
+        () => (historyToDate ? historyToDate.add(1, "day").startOf("day").toISOString() : ""),
         [historyToDate],
     );
 
@@ -869,6 +877,18 @@ export default function Cash() {
                 </CardContent>
             </Card>
 
+            {/* Print & Status Alert Banner */}
+            {snackbar.open && (
+                <Alert
+                    severity={snackbar.severity}
+                    variant="filled"
+                    onClose={() => setSnackbar((p) => ({ ...p, open: false }))}
+                    sx={{ mb: 3, borderRadius: 1.5 }}
+                >
+                    {snackbar.message}
+                </Alert>
+            )}
+
             {/* Tabs */}
             <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
                 <Tab label="Sesión actual" icon={<PointOfSaleRoundedIcon fontSize="small" />} iconPosition="start" />
@@ -1167,6 +1187,7 @@ export default function Cash() {
                                                 setCancelTarget(sale);
                                             }}
                                             cancelling={cancellingSale}
+                                            onPrintStatus={(severity, msg) => showSnack(msg, severity)}
                                         />
                                     )}
                                     expandTooltip="Ver ventas de esta sesión"
@@ -1226,6 +1247,7 @@ export default function Cash() {
                                                         setCancelTarget(sale);
                                                     }}
                                                     cancelling={cancellingSale}
+                                                    onPrintStatus={(severity, msg) => showSnack(msg, severity)}
                                                 />
                                             </AccordionDetails>
                                         </Accordion>
@@ -1531,12 +1553,17 @@ export default function Cash() {
             <CreateSale
                 open={createSaleOpen}
                 onClose={() => setCreateSaleOpen(false)}
-                onSuccess={() => {
+                onSuccess={(orderId) => {
                     setCreateSaleOpen(false);
                     showSnack("Venta registrada correctamente.");
                     setSalesListRefreshKey((k) => k + 1);
                     void loadStatus();
                     if (tab === 1) void loadHistory();
+
+                    // Intentar auto-impresión silenciosa o clásica
+                    void CashService.printReceipt(orderId, (severity, msg) => {
+                        showSnack(msg, severity);
+                    });
                 }}
             />
 
@@ -1612,21 +1639,7 @@ export default function Cash() {
                 </DialogActions>
             </Dialog>
 
-            {/* Snackbar */}
-            <Snackbar
-                open={snackbar.open}
-                autoHideDuration={4000}
-                onClose={() => setSnackbar((p) => ({ ...p, open: false }))}
-                anchorOrigin={{ vertical: "top", horizontal: "center" }}
-            >
-                <Alert
-                    severity={snackbar.severity}
-                    variant="filled"
-                    onClose={() => setSnackbar((p) => ({ ...p, open: false }))}
-                >
-                    {snackbar.message}
-                </Alert>
-            </Snackbar>
+
         </Box>
         </LocalizationProvider>
     );

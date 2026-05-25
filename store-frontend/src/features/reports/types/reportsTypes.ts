@@ -22,7 +22,12 @@ export interface ProductReportRow {
     id: number;
     name: string;
     categoryName: string;
+    /** Precio base del producto. Ver minVariantPrice/maxVariantPrice para el rango efectivo con variantes. */
     salePrice: number;
+    /** Precio mínimo efectivo considerando overrides de variantes activas. */
+    minVariantPrice: number | null;
+    /** Precio máximo efectivo considerando overrides de variantes activas. */
+    maxVariantPrice: number | null;
     variantCount: number;
     totalStock: number;
     isActive: boolean;

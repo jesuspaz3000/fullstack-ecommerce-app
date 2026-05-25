@@ -85,17 +85,17 @@ public class OrderServiceImpl implements OrderService {
                 throw new RuntimeException("Insufficient stock for variant: " + variant.getId());
             }
             
-            // Calcular precio unitario
+            // Calcular precio unitario (usa override de la variante si existe)
             BigDecimal unitPrice;
             Product product = variant.getProduct();
-            
+
             if (itemDto.getCustomUnitPrice() != null) {
                 // Validar permisos para precio personalizado
-                validateCustomPricePermissions(itemDto.getCustomUnitPrice(), product);
+                validateCustomPricePermissions(itemDto.getCustomUnitPrice(), variant);
                 unitPrice = itemDto.getCustomUnitPrice();
             } else {
-                // Usar precio efectivo con descuento si está vigente
-                unitPrice = calculateEffectivePrice(product);
+                // Usar precio efectivo de la variante (descuento del producto si vigente)
+                unitPrice = calculateEffectivePrice(variant);
             }
             
             BigDecimal itemTotal = unitPrice.multiply(BigDecimal.valueOf(itemDto.getQuantity()));
@@ -138,12 +138,17 @@ public class OrderServiceImpl implements OrderService {
         // Guardar orden primero para obtener ID
         Order savedOrder = orderRepository.save(order);
         
-        // Crear dirección de envío (solo nombre obligatorio; resto opcional)
+        // Crear dirección de envío (nombre opcional con default Público General)
         ShippingAddressCreateDTO addressDto = dto.getShippingAddress();
+        String clientName = addressDto.getFullName();
+        if (clientName == null || clientName.trim().isEmpty()) {
+            clientName = "Público General";
+        } else {
+            clientName = clientName.trim();
+        }
         ShippingAddress shippingAddress = ShippingAddress.builder()
                 .order(savedOrder)
-                .fullName(addressDto.getFullName().trim())
-                // BD puede tener NOT NULL en address/city/phone; sin envío del cliente usamos "".
+                .fullName(clientName)
                 .address(blankToEmpty(addressDto.getAddress()))
                 .city(blankToEmpty(addressDto.getCity()))
                 .phone(blankToEmpty(addressDto.getPhone()))
@@ -455,8 +460,22 @@ public class OrderServiceImpl implements OrderService {
      * Bug #1 fix: calcula el precio efectivo de venta aplicando el descuento
      * si hay uno vigente en este momento. Si no, devuelve el sale_price normal.
      */
-    private BigDecimal calculateEffectivePrice(Product product) {
-        BigDecimal price = product.getSalePrice();
+    /**
+     * Precio de venta efectivo de una variante: usa el override de la variante
+     * si está definido, si no hereda del producto, y aplica el descuento del
+     * producto cuando está vigente.
+     */
+    private BigDecimal calculateEffectivePrice(ProductVariant variant) {
+        Product product = variant.getProduct();
+        BigDecimal basePrice = variant.getSalePrice() != null
+                ? variant.getSalePrice()
+                : product.getSalePrice();
+        return applyProductDiscount(basePrice, product);
+    }
+
+    private BigDecimal applyProductDiscount(BigDecimal basePrice, Product product) {
+        if (basePrice == null) return BigDecimal.ZERO;
+        BigDecimal price = basePrice;
         if (product.getDiscountPercentage() != null
                 && product.getDiscountStart() != null
                 && product.getDiscountEnd() != null) {
@@ -472,11 +491,12 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
-     * Valida si el usuario tiene permisos para usar el precio personalizado
+     * Valida si el usuario tiene permisos para usar el precio personalizado.
+     * Usa el precio de compra/venta efectivo de la variante (con fallback al producto).
      */
-    private void validateCustomPricePermissions(BigDecimal customPrice, Product product) {
+    private void validateCustomPricePermissions(BigDecimal customPrice, ProductVariant variant) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        
+
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new AccessDeniedException("User not authenticated");
         }
@@ -485,17 +505,21 @@ public class OrderServiceImpl implements OrderService {
                 .map(auth -> auth.getAuthority())
                 .collect(Collectors.toSet());
 
-        BigDecimal effectiveSalePrice = calculateEffectivePrice(product);
-        
+        Product product = variant.getProduct();
+        BigDecimal effectiveSalePrice = calculateEffectivePrice(variant);
+        BigDecimal effectivePurchasePrice = variant.getPurchasePrice() != null
+                ? variant.getPurchasePrice()
+                : product.getPurchasePrice();
+
         // Si el precio personalizado es menor al precio de venta efectivo
         if (customPrice.compareTo(effectiveSalePrice) < 0) {
             if (!authorities.contains("orders.modify_price_below_sale")) {
                 throw new AccessDeniedException("You don't have permission to sell below sale price");
             }
         }
-        
+
         // Si el precio personalizado es menor al precio de compra
-        if (customPrice.compareTo(product.getPurchasePrice()) < 0) {
+        if (effectivePurchasePrice != null && customPrice.compareTo(effectivePurchasePrice) < 0) {
             if (!authorities.contains("orders.modify_price_below_purchase")) {
                 throw new AccessDeniedException("You don't have permission to sell below purchase price");
             }

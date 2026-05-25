@@ -51,6 +51,15 @@ public class User implements UserDetails {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    /**
+     * Versión del token. Se incrementa cuando se cambia la contraseña para
+     * invalidar los JWT emitidos previamente (todas las sesiones abiertas).
+     * Los tokens llevan un claim {@code tv} que debe coincidir con este valor.
+     */
+    @Column(name = "token_version", nullable = false, columnDefinition = "BIGINT NOT NULL DEFAULT 0")
+    @Builder.Default
+    private Long tokenVersion = 0L;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

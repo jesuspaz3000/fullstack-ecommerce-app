@@ -78,6 +78,15 @@ public class AuthService {
     }
 
     public AuthSessionResult refreshToken(String refreshToken) {
+        return refreshToken(refreshToken, null);
+    }
+
+    /**
+     * Rotación de tokens: valida el refresh token, emite un nuevo par
+     * (access + refresh) y añade ambos tokens anteriores a la blacklist para
+     * que no puedan volver a usarse aunque aún no hayan expirado.
+     */
+    public AuthSessionResult refreshToken(String refreshToken, String oldAccessToken) {
         if (tokenBlacklistService.isTokenBlacklisted(refreshToken)) {
             throw new BadCredentialsException("Refresh token has been revoked");
         }
@@ -91,7 +100,11 @@ public class AuthService {
             throw new RuntimeException("Invalid refresh token");
         }
 
+        // Invalidar el par anterior (refresh + access) para evitar reuso.
         tokenBlacklistService.blacklistToken(refreshToken);
+        if (oldAccessToken != null && !oldAccessToken.isBlank()) {
+            tokenBlacklistService.blacklistToken(oldAccessToken);
+        }
 
         String newAccessToken = jwtService.generateAccessToken(user);
         String newRefreshToken = jwtService.generateRefreshToken(user);

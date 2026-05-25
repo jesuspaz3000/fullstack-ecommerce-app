@@ -37,6 +37,18 @@ public class StoreConfig {
     @Column(name = "logo_url")
     private String logoUrl;
 
+    @Column(name = "printer_name")
+    private String printerName;
+
+    @Column(name = "printer_ip")
+    private String printerIp;
+
+    @Column(name = "printer_port")
+    private Integer printerPort;
+
+    @Column(name = "printer_type")
+    private String printerType;
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;

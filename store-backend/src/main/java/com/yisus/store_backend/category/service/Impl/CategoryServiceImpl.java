@@ -33,10 +33,26 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryDTO createCategory(CategoryCreateDTO request) {
-        if (categoryRepository.findByName(request.getName()).isPresent()){
-            log.warn("Category '{}' already exists", request.getName());
-            throw new DuplicateResourceException("Category '" + request.getName() + "' already exists");
+        // Si ya existe una categoría con ese nombre, decidir según su estado:
+        // - Activa   -> duplicado real, rechazar.
+        // - Inactiva (soft-deleted) -> reactivar con los nuevos datos para evitar
+        //   chocar con la restricción UNIQUE en la columna name.
+        var existingOpt = categoryRepository.findByName(request.getName());
+        if (existingOpt.isPresent()) {
+            Category existing = existingOpt.get();
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                log.warn("Category '{}' already exists", request.getName());
+                throw new DuplicateResourceException("Category '" + request.getName() + "' already exists");
+            }
+
+            existing.setDescription(request.getDescription());
+            existing.setIsActive(true);
+            categoryRepository.save(existing);
+            categoryRepository.flush();
+            log.info("Category '{}' reactivated and updated successfully", existing.getName());
+            return convertToDTO(existing, 0L, 0L, 0L);
         }
+
         Category category = Category.builder()
                 .name(request.getName())
                 .description(request.getDescription())

@@ -8,7 +8,7 @@ import com.yisus.store_backend.cash.dto.CashStatusResponseDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface CashOpeningService {
@@ -24,13 +24,19 @@ public interface CashOpeningService {
 
     /**
      * Historial paginado. {@code cashRegisterId} null = todas las cajas.
-     * Filtros opcionales: id de sesión, fechas de apertura (inclusive), texto en nombre de cliente (envío) o vendedor (usuario del pedido).
+     * Filtros opcionales:
+     * <ul>
+     *   <li>{@code sessionId}</li>
+     *   <li>{@code openedFrom} — instante UTC <em>inclusivo</em> (ej. inicio del día en zona del cliente).</li>
+     *   <li>{@code openedTo} — instante UTC <em>exclusivo</em> (ej. medianoche del día siguiente en zona del cliente).</li>
+     *   <li>{@code customer} / {@code seller} — texto en las ventas de la sesión.</li>
+     * </ul>
      */
     Page<CashSessionHistoryDTO> getSessionHistoryPaginated(
             Long cashRegisterId,
             Long sessionId,
-            LocalDate openedFrom,
-            LocalDate openedTo,
+            LocalDateTime openedFrom,
+            LocalDateTime openedTo,
             String customer,
             String seller,
             Pageable pageable);

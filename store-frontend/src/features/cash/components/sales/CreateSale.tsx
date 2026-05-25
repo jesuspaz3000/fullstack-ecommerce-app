@@ -33,9 +33,10 @@ import { Product } from "@/features/products/types/productsTypes";
 import { ProductsVariant } from "@/features/products/types/productsVariantTypes";
 import type { CreateSale as CreateSalePayload, PaymentMethod } from "../../types/salesTypes";
 import { useCreateSale } from "../../hooks/saleHooks";
+import { CashService } from "../../services/cash.service";
 import { NotificationService } from "@/features/notifications/services/notification.service";
 import { useNotificationsStore } from "@/store/notifications.store";
-import { effectiveSalePrice } from "../../utils/effectivePrice";
+import { effectiveVariantSalePrice, effectiveVariantPurchasePrice } from "../../utils/effectivePrice";
 import { SaleVariantPicker, SaleVariantImages, variantLabel } from "./VariantCarousel";
 import { ImageLightbox } from "@/features/products/components/variantImageUi";
 import { getStoredCashRegisterId } from "@/shared/config/posCashRegister";
@@ -50,7 +51,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 interface Props {
     open: boolean;
     onClose: () => void;
-    onSuccess: () => void;
+    onSuccess: (orderId: number) => void;
 }
 
 type FormErrors = Record<string, string>;
@@ -180,17 +181,26 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
             maximumFractionDigits: 2,
         }).format(n);
 
+    const clampVariantIndex = (variantsCount: number, index: number) =>
+        variantsCount <= 0 ? 0 : Math.min(Math.max(0, index), variantsCount - 1);
+
+    /** Variante activa seleccionada de una línea (o null si no hay). */
+    const getVariantForLine = (line: LineDraft): ProductsVariant | null => {
+        if (!line.product) return null;
+        const vars = activeVariants(line.product);
+        if (vars.length === 0) return null;
+        const vi = clampVariantIndex(vars.length, line.variantIndex);
+        return vars[vi] ?? null;
+    };
+
     const computeUnitPriceForLine = (line: LineDraft): number => {
         if (!line.product) return 0;
         const priceTrim = line.unitPrice.trim();
-        if (!priceTrim) return round2(effectiveSalePrice(line.product));
+        if (!priceTrim) return round2(effectiveVariantSalePrice(line.product, getVariantForLine(line)));
         const p = parseMoney(priceTrim);
         if (!Number.isFinite(p) || p < 0) return 0;
         return round2(p);
     };
-
-    const clampVariantIndex = (variantsCount: number, index: number) =>
-        variantsCount <= 0 ? 0 : Math.min(Math.max(0, index), variantsCount - 1);
 
     useEffect(() => {
         if (!open) return;
@@ -259,14 +269,6 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
         setLines((prev) => prev.map((l) => (l.lineId === lineId ? { ...l, ...patch } : l)));
     };
 
-    const getVariantForLine = (line: LineDraft): ProductsVariant | null => {
-        if (!line.product) return null;
-        const vars = activeVariants(line.product);
-        if (vars.length === 0) return null;
-        const vi = clampVariantIndex(vars.length, line.variantIndex);
-        return vars[vi] ?? null;
-    };
-
     /** Unidades de esta variante ya contadas en otras líneas del mismo pedido. */
     const stockReservedByOtherLines = (lineId: string, variant: ProductsVariant): number => {
         return lines.reduce((sum, line) => {
@@ -302,7 +304,16 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
 
         const currentQty = parseQty(line.quantity);
         const nextQty = currentQty > 0 ? Math.min(currentQty, maxAllowed) : 0;
-        setLine(line.lineId, { variantIndex: vi, quantity: nextQty > 0 ? String(nextQty) : "" });
+        // Al cambiar de variante re-pre-cargamos el precio unitario con el precio efectivo
+        // de la NUEVA variante (que puede diferir: p. ej. talla XXL cuesta más que S).
+        // Si el usuario ya había editado a mano el precio, también lo sobreescribimos para
+        // evitar vender la talla XXL al precio de la S por descuido.
+        const nextUnitPrice = String(round2(effectiveVariantSalePrice(line.product, nextVariant)));
+        setLine(line.lineId, {
+            variantIndex: vi,
+            quantity: nextQty > 0 ? String(nextQty) : "",
+            unitPrice: nextUnitPrice,
+        });
     };
 
     const getPriceWarning = (line: LineDraft): string | null => {
@@ -313,7 +324,9 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
         const price = parseMoney(priceTrim);
         if (!Number.isFinite(price) || price < 0) return null;
 
-        const salePrice = effectiveSalePrice(line.product);
+        const variant = getVariantForLine(line);
+        const salePrice = effectiveVariantSalePrice(line.product, variant);
+        const purchasePrice = effectiveVariantPurchasePrice(line.product, variant);
 
         if (price === 0) {
             if (canSellAtZeroUnit) {
@@ -322,15 +335,15 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
             return null;
         }
 
-        if (price < line.product.purchasePrice) {
+        if (price < purchasePrice) {
             if (canSellBelowPurchase) {
-                return `El precio ${formatCurrency(price)} está por debajo del costo (${formatCurrency(line.product.purchasePrice)}): la venta generará pérdidas en esta línea.`;
+                return `El precio ${formatCurrency(price)} está por debajo del costo (${formatCurrency(purchasePrice)}): la venta generará pérdidas en esta línea.`;
             }
             return null;
         }
 
         if (price < salePrice) {
-            return `Precio unitario ${formatCurrency(price)} (rango permitido: ${formatCurrency(line.product.purchasePrice)} – ${formatCurrency(salePrice)}).`;
+            return `Precio unitario ${formatCurrency(price)} (rango permitido: ${formatCurrency(purchasePrice)} – ${formatCurrency(salePrice)}).`;
         }
         return null;
     };
@@ -343,7 +356,9 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
         const price = parseMoney(priceTrim);
         if (!Number.isFinite(price) || price < 0) return "Precio inválido";
 
-        const salePrice = effectiveSalePrice(line.product);
+        const variant = getVariantForLine(line);
+        const salePrice = effectiveVariantSalePrice(line.product, variant);
+        const purchasePrice = effectiveVariantPurchasePrice(line.product, variant);
 
         if (price === 0) {
             if (!canSellAtZeroUnit) {
@@ -352,7 +367,7 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
             return null;
         }
 
-        if (price < line.product.purchasePrice) {
+        if (price < purchasePrice) {
             if (!canSellBelowPurchase) {
                 return "No tienes permiso para vender por debajo del costo de compra.";
             }
@@ -464,7 +479,9 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                     errs[`${prefix}_unitPrice`] = "Precio inválido";
                     return;
                 }
-                const salePrice = effectiveSalePrice(line.product);
+                const variant = getVariantForLine(line);
+                const salePrice = effectiveVariantSalePrice(line.product, variant);
+                const purchasePrice = effectiveVariantPurchasePrice(line.product, variant);
                 if (price === 0) {
                     if (!canSellAtZeroUnit) {
                         errs[`${prefix}_unitPrice`] =
@@ -472,7 +489,7 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                     }
                     return;
                 }
-                if (price < line.product.purchasePrice && !canSellBelowPurchase) {
+                if (price < purchasePrice && !canSellBelowPurchase) {
                     errs[`${prefix}_unitPrice`] =
                         "No tienes permiso para vender por debajo del costo de compra.";
                     return;
@@ -483,8 +500,6 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                 }
             }
         });
-
-        if (!fullName.trim()) errs.fullName = "Requerido";
 
         if (orderTotal < 0) {
             errs.total = "El total no puede ser negativo";
@@ -524,7 +539,8 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
 
             const qty = parseInt(line.quantity, 10);
 
-            const base = effectiveSalePrice(product);
+            const base = effectiveVariantSalePrice(product, v);
+            const effectivePurchase = effectiveVariantPurchasePrice(product, v);
             const priceTrim = line.unitPrice.trim();
             const enteredPrice = priceTrim ? parseMoney(priceTrim) : null;
             const customUnitPrice =
@@ -538,15 +554,15 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                     lineIndex: i,
                     productName: product.name,
                     unitPrice: 0,
-                    purchasePrice: product.purchasePrice,
+                    purchasePrice: effectivePurchase,
                     kind: "free",
                 });
-            } else if (actualUnitPrice < product.purchasePrice) {
+            } else if (actualUnitPrice < effectivePurchase) {
                 warnings.push({
                     lineIndex: i,
                     productName: product.name,
                     unitPrice: actualUnitPrice,
-                    purchasePrice: product.purchasePrice,
+                    purchasePrice: effectivePurchase,
                     kind: "belowPurchase",
                 });
             }
@@ -563,14 +579,14 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
             paymentLines.length === 1
                 ? [{ method: paymentLines[0].method, amount: orderTotal }]
                 : paymentLines.map((p) => ({
-                      method: p.method,
-                      amount: round2(parseMoney(p.amount)),
-                  }));
+                    method: p.method,
+                    amount: round2(parseMoney(p.amount)),
+                }));
 
         const payload: CreateSalePayload = {
             userId,
             orderItems,
-            shippingAddress: { fullName: fullName.trim() },
+            shippingAddress: { fullName: fullName.trim() || "Público General" },
             payments,
             ...(cashRegisterId != null ? { cashRegisterId } : {}),
         };
@@ -585,9 +601,9 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
             if (canNotifications) {
                 void NotificationService.getUnreadCount()
                     .then(setUnreadCount)
-                    .catch(() => {});
+                    .catch(() => { });
             }
-            onSuccess();
+            onSuccess(result.id);
             onClose();
         } else {
             setSubmitError("No se pudo registrar la venta. Verifica permisos, stock y totales.");
@@ -789,11 +805,14 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                                         <Autocomplete
                                             options={products}
                                             value={line.product}
-                                            onChange={(_, p) => setLine(line.lineId, {
-                                                product: p,
-                                                variantIndex: 0,
-                                                unitPrice: p ? String(round2(effectiveSalePrice(p))) : "",
-                                            })}
+                                            onChange={(_, p) => {
+                                                const firstVariant = p ? (activeVariants(p)[0] ?? null) : null;
+                                                setLine(line.lineId, {
+                                                    product: p,
+                                                    variantIndex: 0,
+                                                    unitPrice: p ? String(round2(effectiveVariantSalePrice(p, firstVariant))) : "",
+                                                });
+                                            }}
                                             getOptionLabel={(p) => p.name}
                                             loading={loadingProducts}
                                             disabled={submitting}
@@ -1052,14 +1071,13 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                         <Box>
                             <SectionTitle>Cliente</SectionTitle>
                             <TextField
-                                label="Nombre completo"
-                                placeholder="Ej. María Pérez López"
+                                label="Nombre completo (Opcional)"
+                                placeholder="Público General"
                                 size="small"
                                 fullWidth
                                 value={fullName}
                                 onChange={(e) => setFullName(e.target.value)}
-                                error={!!errors.fullName}
-                                helperText={errors.fullName ?? "Aparece en el comprobante o registro de la venta."}
+                                helperText={errors.fullName ?? "Aparece en el comprobante. Dejar en blanco para registrar como 'Público General'."}
                                 disabled={submitting}
                             />
                         </Box>
@@ -1083,16 +1101,16 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                                         Math.abs(pendingAmount) < 0.01
                                             ? "success"
                                             : pendingAmount > 0
-                                              ? "warning"
-                                              : "error"
+                                                ? "warning"
+                                                : "error"
                                     }
                                     sx={{ mb: 2 }}
                                 >
                                     {Math.abs(pendingAmount) < 0.01
                                         ? `Listo: ${formatCurrency(orderTotal)} cubierto entre los métodos.`
                                         : pendingAmount > 0
-                                          ? `Asignado ${formatCurrency(distributedTotal)} · Falta ${formatCurrency(pendingAmount)}`
-                                          : `Te pasaste ${formatCurrency(-pendingAmount)} respecto al total ${formatCurrency(orderTotal)}`}
+                                            ? `Asignado ${formatCurrency(distributedTotal)} · Falta ${formatCurrency(pendingAmount)}`
+                                            : `Te pasaste ${formatCurrency(-pendingAmount)} respecto al total ${formatCurrency(orderTotal)}`}
                                 </Alert>
                             )}
 
@@ -1230,8 +1248,8 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                         {confirmWarnings.some((w) => w.kind === "free") && confirmWarnings.some((w) => w.kind === "belowPurchase")
                             ? "Confirmar precios especiales"
                             : confirmWarnings.some((w) => w.kind === "free")
-                              ? "Confirmar venta con ítems gratuitos"
-                              : "Confirmar precio por debajo del costo"}
+                                ? "Confirmar venta con ítems gratuitos"
+                                : "Confirmar precio por debajo del costo"}
                     </Typography>
                     <IconButton size="small" onClick={() => setConfirmOpen(false)} disabled={submitting} aria-label="Cerrar" sx={{ flexShrink: 0 }}>
                         <CloseRoundedIcon fontSize="small" />

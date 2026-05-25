@@ -22,15 +22,28 @@ public class ColorServiceImpl implements ColorService {
     @Override
     @Transactional
     public ColorDTO createColor(ColorCreateDTO colorCreateDTO) {
-        if (colorRepository.existsByName(colorCreateDTO.getName())) {
-            throw new DuplicateKeyException("Color already exists");
+        // Si ya existe un color con ese nombre, decidir según su estado:
+        // - Activo   -> duplicado real, rechazar.
+        // - Inactivo (soft-deleted) -> reactivar con los nuevos datos para
+        //   evitar chocar con la restricción UNIQUE en la columna name.
+        var existingOpt = colorRepository.findByName(colorCreateDTO.getName());
+        if (existingOpt.isPresent()) {
+            Color existing = existingOpt.get();
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                throw new DuplicateKeyException("Color already exists");
+            }
+            existing.setHexCode(colorCreateDTO.getHexCode());
+            existing.setIsActive(true);
+            Color reactivated = colorRepository.save(existing);
+            colorRepository.flush();
+            return convertToDTO(reactivated);
         }
-        
+
         Color color = Color.builder()
                 .name(colorCreateDTO.getName())
                 .hexCode(colorCreateDTO.getHexCode())
                 .build();
-        
+
         Color savedColor = colorRepository.save(color);
         colorRepository.flush();
         return convertToDTO(savedColor);

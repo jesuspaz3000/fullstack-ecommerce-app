@@ -28,14 +28,12 @@ import { PERMISSIONS } from "@/shared/config/permissions";
 import { CashService } from "../services/cash.service";
 import type { CashSessionHistory, CashOutflow } from "../types/cashTypes";
 import type { Sale, OrderStatus, PaymentMethod } from "../types/salesTypes";
+import { formatDateTime as fmtDate } from "@/shared/utils/dateFormat";
 
 const currency = (v: number | null | undefined) =>
     v == null
         ? "—"
         : new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(v);
-
-const fmtDate = (d: string | null | undefined) =>
-    d ? new Date(d).toLocaleString("es-PE") : "—";
 
 const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
     PENDING:   "Pendiente",
@@ -93,6 +91,7 @@ interface Props {
     onViewSale: (sale: Sale) => void;
     onCancelSale: (sale: Sale) => void;
     cancelling: boolean;
+    onPrintStatus?: (severity: "success" | "error" | "info", message: string) => void;
 }
 
 export default function SessionSalesPanel({
@@ -101,6 +100,7 @@ export default function SessionSalesPanel({
     onViewSale,
     onCancelSale,
     cancelling,
+    onPrintStatus,
 }: Props) {
     const theme = useTheme();
     const isNarrow = useMediaQuery(theme.breakpoints.down("md"), { defaultMatches: true });
@@ -113,18 +113,13 @@ export default function SessionSalesPanel({
     const { canRead, canUpdate } = useAuthStore(useShallow(selectOrderPermissions));
 
     const handlePrintReceipt = (sale: Sale) => {
-        const w = window.open("about:blank", "_blank");
-        if (!w) {
-            window.alert(
-                "El navegador bloqueó la ventana emergente. Permite ventanas emergentes para este sitio e intenta de nuevo."
-            );
-            return;
-        }
         setPrintingId(sale.id);
-        void CashService.openReceipt(sale.id, w)
+        void CashService.printReceipt(sale.id, (severity, msg) => {
+            onPrintStatus?.(severity, msg);
+        })
             .catch((err: unknown) => {
-                const msg = err instanceof Error ? err.message : "No se pudo abrir el recibo.";
-                window.alert(msg);
+                const msg = err instanceof Error ? err.message : "No se pudo imprimir el recibo.";
+                onPrintStatus?.("error", msg);
             })
             .finally(() => {
                 setPrintingId(null);
@@ -403,6 +398,8 @@ export default function SessionSalesPanel({
                     </Table>
                 )}
             </Box>
+
+
         </Box>
     );
 }

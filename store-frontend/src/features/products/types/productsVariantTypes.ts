@@ -11,7 +11,17 @@ export interface ProductsVariant {
     sizeName?: string;
     stock: number;
     minStock: number;
-    sku: string;
+    sku?: string | null;
+    /**
+     * Precio de venta específico de esta variante.
+     * `null` = hereda del producto padre.
+     */
+    salePrice?: number | null;
+    /**
+     * Precio de compra específico de esta variante.
+     * `null` = hereda del producto padre.
+     */
+    purchasePrice?: number | null;
     isActive: boolean;
     images: ProductsVariantImage[];
     createdAt: string;
@@ -24,7 +34,12 @@ export interface CreateProductsVariant {
     sizeId?: number;
     stock: number;
     minStock?: number;
-    sku: string;
+    /** Opcional: el cliente puede crear variantes sin SKU. */
+    sku?: string;
+    /** Opcional. Si se omite, la variante hereda el precio del producto. */
+    salePrice?: number | null;
+    /** Opcional. Si se omite, la variante hereda el precio de compra del producto. */
+    purchasePrice?: number | null;
 }
 
 export interface UpdateProductsVariant {
@@ -32,5 +47,10 @@ export interface UpdateProductsVariant {
     sizeId?: number;
     stock: number;
     minStock?: number;
-    sku: string;
+    /** Opcional. Si se omite se mantiene el SKU actual. */
+    sku?: string;
+    /** `null` borra el override y vuelve a heredar del producto. */
+    salePrice?: number | null;
+    /** `null` borra el override y vuelve a heredar del producto. */
+    purchasePrice?: number | null;
 }

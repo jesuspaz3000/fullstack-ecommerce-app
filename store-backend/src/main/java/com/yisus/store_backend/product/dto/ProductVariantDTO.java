@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,6 +25,10 @@ public class ProductVariantDTO {
     private Integer stock;
     private Integer minStock;
     private String sku;
+    /** Precio de venta específico de la variante. {@code null} = hereda del producto. */
+    private BigDecimal salePrice;
+    /** Precio de compra específico de la variante. {@code null} = hereda del producto. */
+    private BigDecimal purchasePrice;
     private Boolean isActive;
     private List<ProductImageDTO> images;  // ← AÑADIDO
     private LocalDateTime createdAt;

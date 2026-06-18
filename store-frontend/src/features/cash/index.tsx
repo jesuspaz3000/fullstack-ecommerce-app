@@ -75,6 +75,7 @@ import {
     adminFormDialogTitleRowSx,
 } from "@/shared/mui/adminFormDialog";
 import { formatDateTime as fmtDate } from "@/shared/utils/dateFormat";
+import { NumericField } from "@/shared/components/NumericField";
 
 const currency = (v: number | null | undefined) =>
     v == null
@@ -910,13 +911,13 @@ export default function Cash() {
                                     <Typography variant="body2" color="text.secondary">
                                         Ingresa el monto inicial con el que comienza el turno.
                                     </Typography>
-                                    <TextField
+                                    <NumericField
                                         label="Monto inicial"
                                         value={initialAmount}
                                         onChange={(e) => setInitialAmount(e.target.value)}
-                                        type="number"
                                         size="small"
                                         fullWidth
+                                        allowDecimals={true}
                                         slotProps={{ input: { startAdornment: <InputAdornment position="start">S/</InputAdornment> } }}
                                         inputProps={{ min: 0, step: "0.01" }}
                                     />
@@ -999,13 +1000,13 @@ export default function Cash() {
                                             <MenuItem key={r.id} value={r.id}>{r.name}</MenuItem>
                                         ))}
                                     </TextField>
-                                    <TextField
+                                    <NumericField
                                         label="Monto"
                                         value={outflowAmount}
                                         onChange={(e) => handleOutflowAmountChange(e.target.value)}
-                                        type="number"
                                         size="small"
                                         fullWidth
+                                        allowDecimals={true}
                                         sx={{ width: { xs: "100%", sm: 150 }, flexShrink: 0 }}
                                         slotProps={{ input: { startAdornment: <InputAdornment position="start">S/</InputAdornment> } }}
                                         inputProps={{ min: 0, step: "0.01" }}
@@ -1439,13 +1440,13 @@ export default function Cash() {
                             Saldo sistema: <strong>{currency(status.systemBalance)}</strong>
                         </Alert>
                     )}
-                    <TextField
+                    <NumericField
                         label="Monto contado en caja"
                         value={closingAmount}
                         onChange={(e) => setClosingAmount(e.target.value)}
-                        type="number"
                         size="small"
                         fullWidth
+                        allowDecimals={true}
                         autoFocus
                         slotProps={{ input: { startAdornment: <InputAdornment position="start">S/</InputAdornment> } }}
                         inputProps={{ min: 0, step: "0.01" }}

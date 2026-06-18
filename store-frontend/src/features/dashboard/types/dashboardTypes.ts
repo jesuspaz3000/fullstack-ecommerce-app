@@ -26,3 +26,10 @@ export interface LowStockAlert {
     minStock: number;
     sku: string | null;
 }
+
+export interface StockInputItem {
+    id: number;
+    quantity: number;
+    type: string;
+    createdAt: string;
+}

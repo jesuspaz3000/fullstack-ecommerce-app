@@ -188,7 +188,7 @@ export default function Header({ onMenuClick, onToggleSidebar, collapsed }: Head
                         <Tooltip title={storeName?.trim() || "Mi tienda"} arrow>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flex: 1 }}>
                                 <Box sx={{ position: "relative", width: 40, height: 40, flexShrink: 0, borderRadius: 1, overflow: "hidden" }}>
-                                    <Image src={logoSrc} alt={storeName || "Logo"} fill style={{ objectFit: "contain" }} unoptimized />
+                                    <Image src={logoSrc} alt={storeName || "Logo"} fill style={{ objectFit: "contain" }} unoptimized priority />
                                 </Box>
                                 <Typography variant="subtitle2" fontWeight={700} noWrap sx={{ flex: 1, minWidth: 0 }}>
                                     Panel de administración

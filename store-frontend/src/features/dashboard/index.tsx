@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import Grid from "@mui/material/Grid";
 import {
     Alert, Box, Card, CardContent, CardHeader, Chip,
@@ -13,14 +13,22 @@ import AttachMoneyRoundedIcon from "@mui/icons-material/AttachMoneyRounded";
 import CalendarMonthRoundedIcon from "@mui/icons-material/CalendarMonthRounded";
 import ShoppingCartRoundedIcon from "@mui/icons-material/ShoppingCartRounded";
 import PointOfSaleRoundedIcon from "@mui/icons-material/PointOfSaleRounded";
-import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
+import TrendingDownRoundedIcon from "@mui/icons-material/TrendingDownRounded";
+import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
 import { DashboardService } from "./services/dashboard.service";
 import type {
     DashboardSummary,
-    LowStockAlert,
     RegisterSalesItem,
     SellerSalesItem,
+    StockInputItem,
 } from "./types/dashboardTypes";
+import FinancialChart from "./components/FinancialChart";
+import DateRangePicker, { DateRange } from "@/shared/components/DateRangePicker";
+import dayjs from "dayjs";
+import { ApiService } from "@/shared/services/api.service";
+import { Sale } from "@/features/cash/types/salesTypes";
+import { CashOutflow } from "@/features/cash/types/cashTypes";
 
 const currency = (v: number) =>
     new Intl.NumberFormat("es-PE", { style: "currency", currency: "PEN" }).format(v);
@@ -32,7 +40,7 @@ const currency = (v: number) =>
  *   rerenderizar en cada píxel de la transición CSS.
  */
 function useDebounceWidth(delay = 260) {
-    const ref     = useRef<HTMLDivElement>(null);
+    const ref = useRef<HTMLDivElement>(null);
     const isFirst = useRef(true);
     const [width, setWidth] = useState<number | undefined>(undefined);
 
@@ -201,200 +209,32 @@ function SalesBarChart({
     );
 }
 
-// ── Alertas de stock ──────────────────────────────────────────────────────────
-
-function StockAlertChip({ stock }: { stock: number }) {
-    if (stock === 0) return <Chip label="Sin stock" color="error" size="small" />;
-    if (stock <= 2)  return <Chip label={`${stock} ud.`} color="error" size="small" variant="outlined" />;
-    return <Chip label={`${stock} ud.`} color="warning" size="small" variant="outlined" />;
-}
-
-function LowStockAlertMobileCard({ a }: { a: LowStockAlert }) {
-    return (
-        <Paper
-            variant="outlined"
-            sx={{
-                p: 1.5,
-                borderRadius: 2,
-                bgcolor: "background.paper",
-            }}
-        >
-            <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, lineHeight: 1.35 }}>
-                {a.productName}
-            </Typography>
-            <Stack spacing={1}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "flex-start" }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
-                        Variante
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: "right" }}>
-                        {a.variantDescription}
-                    </Typography>
-                </Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center" }}>
-                    <Typography variant="caption" color="text.secondary">
-                        SKU
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" fontFamily="monospace">
-                        {a.sku ?? "—"}
-                    </Typography>
-                </Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center" }}>
-                    <Typography variant="caption" color="text.secondary">
-                        Stock actual
-                    </Typography>
-                    <StockAlertChip stock={a.stock} />
-                </Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 2, alignItems: "center" }}>
-                    <Typography variant="caption" color="text.secondary">
-                        Stock mín.
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                        {a.minStock} ud.
-                    </Typography>
-                </Box>
-            </Stack>
-        </Paper>
-    );
-}
-
-function LowStockPanel({ alerts, loading }: { alerts: LowStockAlert[]; loading: boolean }) {
-    const theme = useTheme();
-    const isNarrow = useMediaQuery(theme.breakpoints.down("md"));
-
-    return (
-        <Card variant="outlined">
-            <CardHeader
-                avatar={<WarningAmberRoundedIcon color="warning" />}
-                title={
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <Typography variant="subtitle1" fontWeight={700}>
-                            Alertas de stock
-                        </Typography>
-                        {!loading && alerts.length > 0 && (
-                            <Chip label={alerts.length} color="warning" size="small" sx={{ fontWeight: 700 }} />
-                        )}
-                    </Box>
-                }
-                subheader={
-                    <Typography variant="caption" color="text.secondary">
-                        Variantes cuyo stock actual es igual o menor a su stock mínimo configurado
-                    </Typography>
-                }
-                sx={{ pb: 0 }}
-            />
-            <Divider />
-            <CardContent sx={{ p: 0 }}>
-                {loading ? (
-                    <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
-                        {[1, 2, 3].map((i) => (
-                            <Skeleton
-                                key={i}
-                                variant="rounded"
-                                height={isNarrow ? 140 : 44}
-                                sx={{ borderRadius: 2 }}
-                            />
-                        ))}
-                    </Box>
-                ) : alerts.length === 0 ? (
-                    <Box sx={{ p: 3, textAlign: "center" }}>
-                        <Typography variant="body2" color="text.secondary">
-                            Todos los productos tienen stock suficiente
-                        </Typography>
-                    </Box>
-                ) : isNarrow ? (
-                    <Stack spacing={1.5} sx={{ p: 2 }}>
-                        {alerts.map((a) => (
-                            <LowStockAlertMobileCard key={a.variantId} a={a} />
-                        ))}
-                    </Stack>
-                ) : (
-                    <Box component="table" sx={{ width: "100%", borderCollapse: "collapse" }}>
-                        <Box component="thead">
-                            <Box component="tr" sx={{ bgcolor: "background.tableHeader" }}>
-                                {["Producto", "Variante", "SKU", "Stock actual", "Stock mín."].map((h) => (
-                                    <Box
-                                        key={h}
-                                        component="th"
-                                        sx={{
-                                            px: 2, py: 1, textAlign: "left",
-                                            fontSize: "0.75rem", fontWeight: 700,
-                                            color: "text.secondary", whiteSpace: "nowrap",
-                                        }}
-                                    >
-                                        {h}
-                                    </Box>
-                                ))}
-                            </Box>
-                        </Box>
-                        <Box component="tbody">
-                            {alerts.map((a) => (
-                                <Box
-                                    key={a.variantId}
-                                    component="tr"
-                                    sx={{
-                                        bgcolor: "background.paper",
-                                        "&:hover": { bgcolor: "action.selected" },
-                                        borderTop: "1px solid",
-                                        borderColor: "divider",
-                                    }}
-                                >
-                                    <Box component="td" sx={{ px: 2, py: 1 }}>
-                                        <Tooltip title={a.productName}>
-                                            <Typography
-                                                variant="body2"
-                                                fontWeight={500}
-                                                sx={{
-                                                    maxWidth: 220,
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
-                                                    whiteSpace: "nowrap",
-                                                }}
-                                            >
-                                                {a.productName}
-                                            </Typography>
-                                        </Tooltip>
-                                    </Box>
-                                    <Box component="td" sx={{ px: 2, py: 1 }}>
-                                        <Typography variant="body2" color="text.secondary">
-                                            {a.variantDescription}
-                                        </Typography>
-                                    </Box>
-                                    <Box component="td" sx={{ px: 2, py: 1 }}>
-                                        <Typography variant="caption" color="text.secondary" fontFamily="monospace">
-                                            {a.sku ?? "—"}
-                                        </Typography>
-                                    </Box>
-                                    <Box component="td" sx={{ px: 2, py: 1 }}>
-                                        <StockAlertChip stock={a.stock} />
-                                    </Box>
-                                    <Box component="td" sx={{ px: 2, py: 1 }}>
-                                        <Typography variant="body2" color="text.secondary">
-                                            {a.minStock} ud.
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                            ))}
-                        </Box>
-                    </Box>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
 // ── Dashboard principal ───────────────────────────────────────────────────────
 
 export default function Dashboard() {
-    const [summary, setSummary]           = useState<DashboardSummary | null>(null);
-    const [sellerSales, setSellerSales]   = useState<SellerSalesItem[]>([]);
+    const [summary, setSummary] = useState<DashboardSummary | null>(null);
+    const [sellerSales, setSellerSales] = useState<SellerSalesItem[]>([]);
     const [registerSales, setRegisterSales] = useState<RegisterSalesItem[]>([]);
-    const [alerts, setAlerts]             = useState<LowStockAlert[]>([]);
+    const [stockInputs, setStockInputs] = useState<StockInputItem[]>([]);
 
-    const [loadingSummary,   setLoadingSummary]   = useState(true);
-    const [loadingCharts,    setLoadingCharts]    = useState(true);
-    const [loadingAlerts,    setLoadingAlerts]    = useState(true);
-    const [error,            setError]            = useState<string | null>(null);
+    // Financial data states
+    const [orders, setOrders] = useState<Sale[]>([]);
+    const [outflows, setOutflows] = useState<CashOutflow[]>([]);
+
+    const [loadingSummary, setLoadingSummary] = useState(true);
+    const [loadingCharts, setLoadingCharts] = useState(true);
+    const [loadingStockInputs, setLoadingStockInputs] = useState(true);
+    const [loadingFinData, setLoadingFinData] = useState(true);
+
+    const [error, setError] = useState<string | null>(null);
+    const [finError, setFinError] = useState<string | null>(null);
+
+    // Date range filter state
+    const [dateRange, setDateRange] = useState<DateRange>({
+        startDate: dayjs().subtract(7, "days").startOf("day").toDate(),
+        endDate: dayjs().endOf("day").toDate(),
+        hasTime: false,
+    });
 
     useEffect(() => {
         DashboardService.getSummary()
@@ -410,33 +250,106 @@ export default function Dashboard() {
                 setSellerSales(sellers);
                 setRegisterSales(registers);
             })
-            .catch(() => {}) // las gráficas muestran vacío si falla
+            .catch(() => { }) // las gráficas muestran vacío si falla
             .finally(() => setLoadingCharts(false));
 
-        DashboardService.getLowStock()
-            .then(setAlerts)
-            .catch(() => {})
-            .finally(() => setLoadingAlerts(false));
+        DashboardService.getStockInputs()
+            .then(setStockInputs)
+            .catch(() => { })
+            .finally(() => setLoadingStockInputs(false));
+
+        let active = true;
+        Promise.all([
+            ApiService.get<Sale[]>('/orders'),
+            ApiService.get<CashOutflow[]>('/cash/outflows'),
+        ])
+            .then(([ordersRes, outflowsRes]) => {
+                if (!active) return;
+                setOrders(ordersRes.data);
+                setOutflows(outflowsRes.data);
+            })
+            .catch((err) => {
+                console.error("[Dashboard - fetchData]", err);
+                if (active) {
+                    setFinError("Error al cargar las transacciones financieras");
+                }
+            })
+            .finally(() => {
+                if (active) {
+                    setLoadingFinData(false);
+                }
+            });
+
+        return () => {
+            active = false;
+        };
     }, []);
+
+    // Filter orders and stock inputs client-side by date range
+    const filteredOrders = useMemo(() => {
+        const start = dayjs(dateRange.startDate);
+        const end = dayjs(dateRange.endDate);
+
+        return orders.filter((o) => {
+            const oDate = dayjs(o.createdAt);
+            const isAfterOrEqual = oDate.isAfter(start) || oDate.isSame(start);
+            const isBeforeOrEqual = oDate.isBefore(end) || oDate.isSame(end);
+            return isAfterOrEqual && isBeforeOrEqual && o.status !== "CANCELLED";
+        });
+    }, [orders, dateRange]);
+
+    const filteredStockInputs = useMemo(() => {
+        const start = dayjs(dateRange.startDate);
+        const end = dayjs(dateRange.endDate);
+
+        return stockInputs.filter((item) => {
+            const itemDate = dayjs(item.createdAt);
+            const isAfterOrEqual = itemDate.isAfter(start) || itemDate.isSame(start);
+            const isBeforeOrEqual = itemDate.isBefore(end) || itemDate.isSame(end);
+            return isAfterOrEqual && isBeforeOrEqual;
+        });
+    }, [stockInputs, dateRange]);
+
+    const totalIngresos = useMemo(() => {
+        return filteredOrders.reduce((sum, o) => sum + Number(o.total), 0);
+    }, [filteredOrders]);
+
+    const totalProductInputs = useMemo(() => {
+        return filteredStockInputs.reduce((sum, item) => sum + item.quantity, 0);
+    }, [filteredStockInputs]);
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
 
-            {/* Título */}
-            <Box>
-                <Typography variant="h5" fontWeight={700}>
-                    Panel General
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                    Resumen de actividad de la tienda
-                </Typography>
+            {/* Cabecera con Título y Filtro de Fecha */}
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    justifyContent: "space-between",
+                    alignItems: { xs: "stretch", sm: "center" },
+                    gap: 2,
+                    mb: 1,
+                }}
+            >
+                <Box>
+                    <Typography variant="h5" fontWeight={700}>
+                        Panel General
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Resumen de actividad de la tienda
+                    </Typography>
+                </Box>
+                <Box sx={{ minWidth: { xs: "100%", sm: 280, md: 320 } }}>
+                    <DateRangePicker value={dateRange} onChange={setDateRange} fullWidth />
+                </Box>
             </Box>
 
             {error && <Alert severity="error">{error}</Alert>}
 
             {/* Tarjetas de resumen */}
             <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 12, sm: 6, md: 3, lg: 3 }}>
                     <SummaryCard
                         label="Ventas hoy"
                         value={summary ? currency(summary.todaySales) : "—"}
@@ -446,7 +359,7 @@ export default function Dashboard() {
                         loading={loadingSummary}
                     />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 12, sm: 6, md: 3, lg: 3 }}>
                     <SummaryCard
                         label="Ventas este mes"
                         value={summary ? currency(summary.monthSales) : "—"}
@@ -455,28 +368,38 @@ export default function Dashboard() {
                         loading={loadingSummary}
                     />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 12, sm: 6, md: 3, lg: 3 }}>
                     <SummaryCard
-                        label="Sesiones abiertas"
-                        value={summary ? String(summary.openSessions) : "—"}
-                        icon={PointOfSaleRoundedIcon}
-                        color="#f59e0b"
-                        loading={loadingSummary}
+                        label="Ingresos de Ventas"
+                        value={loadingFinData ? "—" : currency(totalIngresos)}
+                        sub={loadingFinData ? undefined : `${filteredOrders.length} orden(es)`}
+                        icon={TrendingUpRoundedIcon}
+                        color="#10b981"
+                        loading={loadingFinData}
                     />
                 </Grid>
-                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Grid size={{ xs: 12, sm: 6, md: 3, lg: 3 }}>
                     <SummaryCard
-                        label="Alertas de stock"
-                        value={summary ? String(summary.lowStockCount) : "—"}
-                        sub={summary?.lowStockCount ? "variantes con stock bajo" : undefined}
-                        icon={WarningAmberRoundedIcon}
-                        color="#ef4444"
-                        loading={loadingSummary}
+                        label="Ingreso de productos"
+                        value={loadingStockInputs ? "—" : `${totalProductInputs} ud.`}
+                        sub={loadingStockInputs ? undefined : `${filteredStockInputs.length} ingreso(s)`}
+                        icon={Inventory2RoundedIcon}
+                        color="#f59e0b"
+                        loading={loadingStockInputs}
                     />
                 </Grid>
             </Grid>
 
-            {/* Gráficas */}
+            {/* Gráfico Financiero de Ingresos, Ventas y Rentabilidad */}
+            <FinancialChart
+                orders={orders}
+                outflows={outflows}
+                dateRange={dateRange}
+                loading={loadingFinData}
+                error={finError}
+            />
+
+            {/* Gráficas secundarias */}
             <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 6 }}>
                     <SalesBarChart
@@ -498,8 +421,7 @@ export default function Dashboard() {
                 </Grid>
             </Grid>
 
-            {/* Alertas de stock */}
-            <LowStockPanel alerts={alerts} loading={loadingAlerts} />
+
 
         </Box>
     );

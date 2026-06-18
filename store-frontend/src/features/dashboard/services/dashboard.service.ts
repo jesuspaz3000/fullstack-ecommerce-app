@@ -4,6 +4,7 @@ import type {
     SellerSalesItem,
     RegisterSalesItem,
     LowStockAlert,
+    StockInputItem,
 } from "../types/dashboardTypes";
 
 export const DashboardService = {
@@ -24,6 +25,11 @@ export const DashboardService = {
 
     getLowStock: async (): Promise<LowStockAlert[]> => {
         const res = await ApiService.get<LowStockAlert[]>("/dashboard/low-stock");
+        return res.data;
+    },
+
+    getStockInputs: async (): Promise<StockInputItem[]> => {
+        const res = await ApiService.get<StockInputItem[]>("/dashboard/stock-inputs");
         return res.data;
     },
 };

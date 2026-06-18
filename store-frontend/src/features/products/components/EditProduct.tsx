@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import {
     Alert,
     Autocomplete,
@@ -17,35 +17,46 @@ import {
     FormHelperText,
     IconButton,
     InputAdornment,
+    MenuItem,
+    Paper,
+    Select,
     Stack,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
     TextField,
     Tooltip,
     Typography,
 } from "@mui/material";
 import { useTheme, alpha } from "@mui/material/styles";
-import AddRoundedIcon         from "@mui/icons-material/AddRounded";
-import CheckRoundedIcon       from "@mui/icons-material/CheckRounded";
-import CloseRoundedIcon       from "@mui/icons-material/CloseRounded";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-import SaveRoundedIcon          from "@mui/icons-material/SaveRounded";
+import SaveRoundedIcon from "@mui/icons-material/SaveRounded";
+import PhotoCameraRoundedIcon from "@mui/icons-material/PhotoCameraRounded";
+import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
 import {
     useUpdateProduct,
     useAllCategoriesSelect,
     useAllColors, useCreateColor,
-    useAllSizes,  useCreateSize,
+    useAllSizes, useCreateSize,
     useUpdateProductVariant,
     useCreateProductVariant,
     useCreateProductVariantImage,
     useDeleteProductVariant,
     useSetMainProductVariantImage,
 } from "../hooks/productsHooks";
-import { ProductService }               from "../services/products.service";
-import { ProductsVariantImageService }  from "../services/productsVariantImage.service";
-import { Product }                      from "../types/productsTypes";
+import { ProductService } from "../services/products.service";
+import { ProductsVariantImageService } from "../services/productsVariantImage.service";
+import { Product } from "../types/productsTypes";
 import { CreateProductsVariant, UpdateProductsVariant } from "../types/productsVariantTypes";
-import { Color }                        from "../types/colorsTypes";
-import { Size }                         from "../types/sizesTypes";
-import { toMediaUrl }                   from "@/shared/utils/mediaUrl";
+import { Color } from "../types/colorsTypes";
+import { Size } from "../types/sizesTypes";
+import { toMediaUrl } from "@/shared/utils/mediaUrl";
 import {
     ImageLightbox,
     VariantAddMoreImagesButton,
@@ -53,6 +64,7 @@ import {
     VariantPrimaryImageDropSlot,
     VARIANT_PRIMARY_IMAGE_SIZE,
 } from "./variantImageUi";
+import { NumericField } from "@/shared/components/NumericField";
 
 // ─── Image URL helper ──────────────────────────────────────────────────────────
 const imgUrl = (path: string) => toMediaUrl(path);
@@ -60,25 +72,25 @@ const imgUrl = (path: string) => toMediaUrl(path);
 // ─── Per-variant edit state ────────────────────────────────────────────────────
 interface VariantEdit {
     selectedColorId: number | null;
-    showNewColor:    boolean;
-    newColorName:    string;
-    newColorHex:     string;
-    selectedSizeId:  number | null;
-    showNewSize:     boolean;
-    newSizeName:     string;
-    stock:           string;
-    minStock:        string;
-    sku:             string;
+    showNewColor: boolean;
+    newColorName: string;
+    newColorHex: string;
+    selectedSizeId: number | null;
+    showNewSize: boolean;
+    newSizeName: string;
+    stock: string;
+    minStock: string;
+    sku: string;
     /** Vacío = hereda del producto; con número = override específico de la variante. */
-    salePrice:       string;
+    salePrice: string;
     /** Vacío = hereda del producto; con número = override específico de la variante. */
-    purchasePrice:   string;
+    purchasePrice: string;
 }
 
 interface Props {
-    open:      boolean;
-    product:   Product | null;
-    onClose:   () => void;
+    open: boolean;
+    product: Product | null;
+    onClose: () => void;
     onSuccess: () => void;
 }
 
@@ -149,8 +161,8 @@ function emptyVariantDraft(): VariantDraft {
         selectedSize: null,
         showNewSize: false,
         newSizeName: "",
-        stock: "",
-        minStock: "5",
+        stock: "0",
+        minStock: "0",
         sku: "",
         salePrice: "",
         purchasePrice: "",
@@ -171,42 +183,36 @@ function isSkippableVariantDraft(vd: VariantDraft): boolean {
     );
 }
 
-/** Stock en alerta cuando el actual es ≤ al mínimo de la variante (misma regla que el dashboard). */
-function isVariantStockAtOrBelowMin(stockStr: string, minStockStr: string): boolean {
-    const stock = parseInt(stockStr, 10);
-    const min = parseInt(minStockStr, 10);
-    if (Number.isNaN(stock) || Number.isNaN(min) || min < 0) return false;
-    return stock <= min;
-}
+
 
 export default function EditProduct({ open, product, onClose, onSuccess }: Props) {
     const theme = useTheme();
 
     // ── Hooks ──────────────────────────────────────────────────────────────────
-    const { execute: updateProduct }   = useUpdateProduct();
-    const { execute: updateVariant }   = useUpdateProductVariant();
+    const { execute: updateProduct } = useUpdateProduct();
+    const { execute: updateVariant } = useUpdateProductVariant();
     const { execute: deleteVariantById } = useDeleteProductVariant();
-    const { execute: createVariant }   = useCreateProductVariant();
-    const { execute: uploadImages }    = useCreateProductVariantImage();
+    const { execute: createVariant } = useCreateProductVariant();
+    const { execute: uploadImages } = useCreateProductVariantImage();
     const { execute: setMainVariantImage, loading: settingMainImage } = useSetMainProductVariantImage();
-    const { execute: createColor }     = useCreateColor();
-    const { execute: createSize }      = useCreateSize();
+    const { execute: createColor } = useCreateColor();
+    const { execute: createSize } = useCreateSize();
 
-    const { data: categories, loading: catsLoading }      = useAllCategoriesSelect(open);
-    const { data: colors,     loading: colorsLoading }    = useAllColors(open);
-    const { data: sizes,      loading: sizesLoading }     = useAllSizes(open);
+    const { data: categories, loading: catsLoading } = useAllCategoriesSelect(open);
+    const { data: colors, loading: colorsLoading } = useAllColors(open);
+    const { data: sizes, loading: sizesLoading } = useAllSizes(open);
 
     // ── Fresh product state ────────────────────────────────────────────────────
-    const [productDetail, setProductDetail]   = useState<Product | null>(null);
-    const [loadingDetail, setLoadingDetail]   = useState(false);
+    const [productDetail, setProductDetail] = useState<Product | null>(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
 
     // ── Product fields ─────────────────────────────────────────────────────────
-    const [name, setName]                   = useState("");
+    const [name, setName] = useState("");
     const [purchasePrice, setPurchasePrice] = useState("");
-    const [salePrice, setSalePrice]         = useState("");
-    const [minStock, setMinStock]           = useState("");
-    const [categoryId, setCategoryId]       = useState<number | "">("");
-    const [errors, setErrors]               = useState<FormErrors>({});
+    const [salePrice, setSalePrice] = useState("");
+    const [minStock, setMinStock] = useState("");
+    const [categoryId, setCategoryId] = useState<number | "">("");
+    const [errors, setErrors] = useState<FormErrors>({});
 
     // ── Variant edits (per variantId) ──────────────────────────────────────────
     const [variantEdits, setVariantEdits] = useState<Record<number, VariantEdit>>({});
@@ -220,30 +226,23 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
     const variantImagePickerRef = useRef<HTMLInputElement>(null);
     const pendingPickerVariantIdRef = useRef<number | null>(null);
 
+    const [activeImageEdit, setActiveImageEdit] = useState<{
+        type: "existing" | "draft";
+        id?: number;
+        rowId?: string;
+    } | null>(null);
+
     const [variantDrafts, setVariantDrafts] = useState<VariantDraft[]>([]);
     /** Confirmación antes de desactivar una variante (DELETE API). */
     const [variantIdPendingDelete, setVariantIdPendingDelete] = useState<number | null>(null);
     const [deletingVariant, setDeletingVariant] = useState(false);
 
     // ── Submit state ───────────────────────────────────────────────────────────
-    const [submitting, setSubmitting]   = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const [submitError, setSubmitError] = useState<string | null>(null);
     const [imageLightbox, setImageLightbox] = useState<{ src: string; alt: string } | null>(null);
 
-    // ── Stock warning ──────────────────────────────────────────────────────────
-    const totalStockInForm = useMemo(() => {
-        const fromEdits  = Object.values(variantEdits).reduce((s, e) => s + (parseInt(e.stock, 10) || 0), 0);
-        const fromDrafts = variantDrafts.reduce((s, vd) => s + (parseInt(vd.stock, 10) || 0), 0);
-        return fromEdits + fromDrafts;
-    }, [variantEdits, variantDrafts]);
 
-    const minStockWarning = (() => {
-        const ms = parseInt(minStock, 10);
-        if (!ms || ms <= 0) return null;
-        if (ms > totalStockInForm)
-            return `El stock mínimo supera el stock total actual (${totalStockInForm} unid.). Considera aumentar el stock de las variantes.`;
-        return null;
-    })();
 
     // ── Fetch product by ID ────────────────────────────────────────────────────
     const loadProduct = async (id: number) => {
@@ -265,17 +264,17 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
             fresh.variants.filter((v) => v.isActive !== false).forEach((v) => {
                 edits[v.id] = {
                     selectedColorId: v.colorId ?? null,
-                    showNewColor:    false,
-                    newColorName:    "",
-                    newColorHex:     "#3b82f6",
-                    selectedSizeId:  v.sizeId ?? null,
-                    showNewSize:     false,
-                    newSizeName:     "",
-                    stock:           String(v.stock),
-                    minStock:        String(v.minStock ?? 5),
-                    sku:             v.sku ?? "",
-                    salePrice:       v.salePrice != null ? String(v.salePrice) : "",
-                    purchasePrice:   v.purchasePrice != null ? String(v.purchasePrice) : "",
+                    showNewColor: false,
+                    newColorName: "",
+                    newColorHex: "#3b82f6",
+                    selectedSizeId: v.sizeId ?? null,
+                    showNewSize: false,
+                    newSizeName: "",
+                    stock: String(v.stock),
+                    minStock: v.minStock != null ? String(v.minStock) : "0",
+                    sku: v.sku ?? "",
+                    salePrice: v.salePrice != null ? String(v.salePrice) : "",
+                    purchasePrice: v.purchasePrice != null ? String(v.purchasePrice) : "",
                 };
             });
             setVariantEdits(edits);
@@ -294,12 +293,14 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
         setSubmitError(null);
         setPendingDeleteImageIds([]);
         setPendingUploadsByVariant({});
+        setActiveImageEdit(null);
         loadProduct(product.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, product?.id]);
 
     const handleClose = () => {
         (document.activeElement as HTMLElement)?.blur();
+        setActiveImageEdit(null);
         queueMicrotask(() => {
             onClose();
         });
@@ -487,6 +488,22 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
         [productDetail],
     );
 
+    const getVariantMainImage = (vId: number) => {
+        const v = activeVariants.find((vv) => vv.id === vId);
+        if (!v) return null;
+        const visible = v.images.filter((img) => !pendingDeleteImageIds.includes(img.id));
+        const serverHero = visible.find((img) => img.isMain) || visible[0];
+        if (serverHero) return imgUrl(serverHero.url);
+        const pending = pendingUploadsByVariant[vId];
+        if (pending?.previews?.length) return pending.previews[0].url;
+        return null;
+    };
+
+    const getDraftMainImage = (vd: VariantDraft) => {
+        if (vd.imagePreviews.length > 0) return vd.imagePreviews[0].url;
+        return null;
+    };
+
     const handleConfirmDeleteVariant = async () => {
         if (variantIdPendingDelete == null || !product?.id || !productDetail) return;
         const vid = variantIdPendingDelete;
@@ -516,18 +533,69 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
     // ── Validation ─────────────────────────────────────────────────────────────
     const validate = (): boolean => {
         const errs: FormErrors = {};
-        if (!name.trim())                                 errs.name          = "Requerido";
+        if (!name.trim()) errs.name = "Requerido";
         if (!purchasePrice || Number(purchasePrice) <= 0) errs.purchasePrice = "Ingresa un precio válido";
-        if (!salePrice     || Number(salePrice)     <= 0) errs.salePrice     = "Ingresa un precio válido";
-        if (!minStock      || Number(minStock)      <  0) errs.minStock      = "Requerido";
-        if (!categoryId)                                  errs.categoryId    = "Requerido";
+        if (!salePrice || Number(salePrice) <= 0) errs.salePrice = "Ingresa un precio válido";
+        if (!minStock || Number(minStock) < 0) errs.minStock = "Requerido";
+        if (!categoryId) errs.categoryId = "Requerido";
 
+        // Unicidad de combinaciones
+        const combinations = new Set<string>();
+
+        // 1. Agregar y validar variantes existentes activas
+        activeVariants.forEach((v) => {
+            const edit = variantEdits[v.id];
+            if (!edit) return;
+
+            let currentStock = edit.stock.trim();
+            if (currentStock === "") {
+                currentStock = "0";
+                setVEdit(v.id, { stock: "0" });
+            }
+
+            const colorKey = edit.showNewColor
+                ? `newcolor:${edit.newColorName.trim().toLowerCase()}`
+                : (edit.selectedColorId ? String(edit.selectedColorId) : "null");
+
+            const sizeKey = edit.showNewSize
+                ? `newsize:${edit.newSizeName.trim().toLowerCase()}`
+                : (edit.selectedSizeId ? String(edit.selectedSizeId) : "null");
+
+            const sig = `${colorKey}_${sizeKey}`;
+            if (combinations.has(sig)) {
+                errs[`v_${v.id}_combination`] = "Esta combinación de color y talla ya existe en este producto.";
+            } else {
+                combinations.add(sig);
+            }
+        });
+
+        // 2. Agregar y validar variantes borrador
         variantDrafts.forEach((vd, i) => {
             if (isSkippableVariantDraft(vd)) return;
             const p = `nd${i}`;
+            let currentStock = vd.stock.trim();
+            if (currentStock === "") {
+                currentStock = "0";
+                setDraft(vd.rowId, { stock: "0" });
+            }
             if (vd.showNewColor && !vd.newColorName.trim()) errs[`${p}_newColorName`] = "Ingresa el nombre del color";
-            if (vd.showNewSize && !vd.newSizeName.trim())   errs[`${p}_newSizeName`]  = "Ingresa el nombre de la talla";
-            if (!vd.stock.trim() || Number(vd.stock) < 0)   errs[`${p}_stock`]        = "Requerido";
+            if (vd.showNewSize && !vd.newSizeName.trim()) errs[`${p}_newSizeName`] = "Ingresa el nombre de la talla";
+            if (Number(currentStock) < 0) errs[`${p}_stock`] = "Requerido";
+
+            const colorKey = vd.showNewColor
+                ? `newcolor:${vd.newColorName.trim().toLowerCase()}`
+                : (vd.selectedColor ? String(vd.selectedColor.id) : "null");
+
+            const sizeKey = vd.showNewSize
+                ? `newsize:${vd.newSizeName.trim().toLowerCase()}`
+                : (vd.selectedSize ? String(vd.selectedSize.id) : "null");
+
+            const sig = `${colorKey}_${sizeKey}`;
+            if (combinations.has(sig)) {
+                errs[`${p}_combination`] = "Esta combinación de color y talla ya existe (o está repetida).";
+            } else {
+                combinations.add(sig);
+            }
         });
 
         setErrors(errs);
@@ -542,12 +610,12 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
         try {
             // 1 ─ Update product fields
             await updateProduct(product.id, {
-                name:          name.trim(),
+                name: name.trim(),
                 purchasePrice: parseFloat(purchasePrice),
-                salePrice:     parseFloat(salePrice),
-                isFeatured:    productDetail.isFeatured,
-                categoryId:    categoryId as number,
-                minStock:      parseInt(minStock, 10),
+                salePrice: parseFloat(salePrice),
+                isFeatured: productDetail.isFeatured,
+                categoryId: categoryId as number,
+                minStock: parseInt(minStock, 10),
             });
 
             // 2 ─ Update each variant if color / size / stock / sku changed
@@ -574,12 +642,12 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                 }
 
                 const stockVal = parseInt(edit.stock, 10) || 0;
-                const skuVal   = edit.sku.trim();
-                const prevSku  = (v.sku ?? "").trim();
+                const skuVal = edit.sku.trim();
+                const prevSku = (v.sku ?? "").trim();
                 const prevColor = v.colorId ?? null;
-                const prevSize  = v.sizeId ?? null;
+                const prevSize = v.sizeId ?? null;
                 const nextColor = resolvedColorId ?? null;
-                const nextSize  = resolvedSizeId ?? null;
+                const nextSize = resolvedSizeId ?? null;
 
                 const salePriceVal: number | null = edit.salePrice.trim() !== ""
                     ? (Number.isFinite(Number(edit.salePrice)) ? Number(edit.salePrice) : null)
@@ -598,15 +666,15 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
                     salePriceVal !== prevSalePrice ||
                     purchasePriceVal !== prevPurchasePrice;
 
-                const minStockVal = parseInt(edit.minStock, 10) || 5;
-                if (changed || minStockVal !== (v.minStock ?? 5)) {
+                const minStockVal = edit.minStock.trim() !== "" ? parseInt(edit.minStock, 10) : 0;
+                if (changed || minStockVal !== (v.minStock ?? 0)) {
                     const updatePayload: UpdateProductsVariant = {
-                        stock:    stockVal,
+                        stock: stockVal,
                         minStock: minStockVal,
-                        salePrice:     salePriceVal,
+                        salePrice: salePriceVal,
                         purchasePrice: purchasePriceVal,
-                        ...(resolvedColorId !== undefined ? { colorId: resolvedColorId } : {}),
-                        ...(resolvedSizeId !== undefined ? { sizeId: resolvedSizeId } : {}),
+                        colorId: resolvedColorId !== undefined ? resolvedColorId : (edit.selectedColorId ?? null),
+                        sizeId: resolvedSizeId !== undefined ? resolvedSizeId : (edit.selectedSizeId ?? null),
                     };
                     if (skuVal !== "") updatePayload.sku = skuVal;
                     await updateVariant(v.id, updatePayload);
@@ -630,11 +698,11 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
             for (const vd of variantDrafts) {
                 if (isSkippableVariantDraft(vd)) continue;
                 const colorId = await resolveDraftColorId(vd);
-                const sizeId  = await resolveDraftSizeId(vd);
+                const sizeId = await resolveDraftSizeId(vd);
                 const payload: CreateProductsVariant = {
                     productId: productDetail.id,
-                    stock:     parseInt(vd.stock, 10),
-                    minStock:  parseInt(vd.minStock, 10) || 5,
+                    stock: parseInt(vd.stock, 10),
+                    minStock: vd.minStock.trim() !== "" ? parseInt(vd.minStock, 10) : 0,
                 };
                 const draftSku = vd.sku.trim();
                 if (draftSku !== "") payload.sku = draftSku;
@@ -658,9 +726,14 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
             setVariantDrafts([]);
             onSuccess();
             handleClose();
-        } catch (err) {
+        } catch (err: any) {
             console.error("[EditProduct] submit", err);
-            setSubmitError("Ocurrió un error al guardar. Verifica los datos e intenta de nuevo.");
+            const msg = err?.response?.data?.message || err?.message || "";
+            if (msg.includes("Ya existe una variante activa")) {
+                setSubmitError("Ya existe una variante activa con esa combinación de color y talla en este producto.");
+            } else {
+                setSubmitError("Ocurrió un error al guardar. Verifica los datos e intenta de nuevo.");
+            }
         } finally {
             setSubmitting(false);
         }
@@ -677,922 +750,1787 @@ export default function EditProduct({ open, product, onClose, onSuccess }: Props
     // ─────────────────────────────────────────────────────────────────────────
     return (
         <>
-        <Dialog
-            open={open}
-            onClose={handleClose}
-            maxWidth="lg"
-            fullWidth
-            closeAfterTransition={false}
-            disableRestoreFocus
-            slotProps={{
-                paper: {
-                    sx: {
-                        m: { xs: 2, sm: 3 },
-                        maxHeight: { xs: "calc(100vh - 32px)", sm: "calc(100vh - 48px)" },
+            <Dialog
+                open={open}
+                onClose={handleClose}
+                maxWidth="lg"
+                fullWidth
+                closeAfterTransition={false}
+                disableRestoreFocus
+                slotProps={{
+                    paper: {
+                        sx: {
+                            m: { xs: 2, sm: 3 },
+                            maxHeight: { xs: "calc(100vh - 32px)", sm: "calc(100vh - 48px)" },
+                            display: "flex",
+                            flexDirection: "column",
+                            borderRadius: 2,
+                        },
+                    },
+                }}
+            >
+                <DialogTitle
+                    sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        pr: 1,
+                        py: 2,
+                        px: { xs: 1.5, sm: 3 },
+                        borderBottom: 1,
+                        borderColor: "divider",
+                        flexShrink: 0,
+                    }}
+                >
+                    <Typography
+                        component="span"
+                        variant="h6"
+                        fontWeight={800}
+                        letterSpacing="0.06em"
+                        sx={{ color: "primary.main", fontSize: { xs: "1rem", sm: "1.25rem" }, pr: 1 }}
+                    >
+                        Editar producto
+                    </Typography>
+                    <IconButton size="small" onClick={handleClose} disabled={isBusy} aria-label="Cerrar">
+                        <CloseRoundedIcon fontSize="small" />
+                    </IconButton>
+                </DialogTitle>
+
+                <DialogContent
+                    dividers
+                    sx={{
                         display: "flex",
                         flexDirection: "column",
-                        borderRadius: 2,
-                    },
-                },
-            }}
-        >
-            <DialogTitle
-                sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    pr: 1,
-                    py: 2,
-                    px: { xs: 1.5, sm: 3 },
-                    borderBottom: 1,
-                    borderColor: "divider",
-                    flexShrink: 0,
-                }}
-            >
-                <Typography
-                    component="span"
-                    variant="h6"
-                    fontWeight={800}
-                    letterSpacing="0.06em"
-                    sx={{ color: "primary.main", fontSize: { xs: "1rem", sm: "1.25rem" }, pr: 1 }}
+                        gap: 0,
+                        pt: 2.5,
+                        px: { xs: 1.5, sm: 3 },
+                        overflowX: "hidden",
+                        flex: 1,
+                        minHeight: 0,
+                    }}
                 >
-                    Editar producto
-                </Typography>
-                <IconButton size="small" onClick={handleClose} disabled={isBusy} aria-label="Cerrar">
-                    <CloseRoundedIcon fontSize="small" />
-                </IconButton>
-            </DialogTitle>
+                    {submitError && <Alert severity="error" sx={{ mb: 2.5 }}>{submitError}</Alert>}
 
-            <DialogContent
-                dividers
-                sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 0,
-                    pt: 2.5,
-                    px: { xs: 1.5, sm: 3 },
-                    overflowX: "hidden",
-                    flex: 1,
-                    minHeight: 0,
-                }}
-            >
-                {submitError && <Alert severity="error" sx={{ mb: 2.5 }}>{submitError}</Alert>}
-
-                {loadingDetail ? (
-                    <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-                        <CircularProgress />
-                    </Box>
-                ) : (
-                    <>
-                        <Box
-                            sx={{
-                                display: "grid",
-                                gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                                gap: { xs: 2.5, md: 4 },
-                                alignItems: "start",
-                                mb: 1,
-                            }}
-                        >
-                            <Stack spacing={2}>
-                                <Box>
-                                    <SectionTitle>Información básica</SectionTitle>
-                                    <TextField
-                                        label="Nombre del producto"
-                                        placeholder="Ej. Polera básica algodón"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        fullWidth
-                                        size="small"
-                                        required
-                                        error={!!errors.name}
-                                        helperText={errors.name}
-                                    />
-                                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                                        Los cambios del producto y de cada variante se aplican al pulsar «Guardar cambios».
-                                    </Typography>
-                                </Box>
-                                <Box>
-                                    <SectionTitle>Stock mínimo (producto)</SectionTitle>
-                                    <TextField
-                                        label="Stock mínimo"
-                                        value={minStock}
-                                        onChange={(e) => setMinStock(e.target.value)}
-                                        onKeyDown={blockNonIntegerKeys}
-                                        size="small"
-                                        required
-                                        type="number"
-                                        sx={{ width: "100%", maxWidth: { sm: 280 } }}
-                                        error={!!errors.minStock}
-                                        helperText={
-                                            errors.minStock ??
-                                            minStockWarning ??
-                                            "Alerta cuando el inventario total del producto esté bajo este umbral."
-                                        }
-                                        slotProps={{
-                                            htmlInput: { min: 0 },
-                                            formHelperText: {
-                                                sx: !errors.minStock && minStockWarning ? { color: "warning.main" } : {},
-                                            },
-                                        }}
-                                    />
-                                </Box>
-                            </Stack>
-
-                            <Stack spacing={2}>
-                                <Box>
-                                    <SectionTitle>Categoría</SectionTitle>
-                                    <FormControl fullWidth size="small" required error={!!errors.categoryId}>
-                                        <Autocomplete
-                                            value={categories.find((c) => c.id === categoryId) ?? null}
-                                            options={categories}
-                                            getOptionLabel={(option) => option.name}
-                                            getOptionKey={(option) => option.id}
-                                            renderInput={(params) => (
-                                                <TextField {...params} label="Elegir categoría" placeholder="Buscar…" />
-                                            )}
-                                            onChange={(_, value) => setCategoryId(value?.id ?? "")}
-                                            loading={catsLoading}
-                                        />
-                                        {errors.categoryId && <FormHelperText>{errors.categoryId}</FormHelperText>}
-                                    </FormControl>
-                                </Box>
-                                <Box>
-                                    <SectionTitle>Precios</SectionTitle>
-                                    <Stack spacing={2}>
-                                        <TextField
-                                            label="Precio de compra"
-                                            value={purchasePrice}
-                                            onChange={(e) => setPurchasePrice(e.target.value)}
-                                            onKeyDown={blockNegativeKeys}
-                                            fullWidth
-                                            size="small"
-                                            required
-                                            type="number"
-                                            slotProps={{
-                                                input: {
-                                                    startAdornment: <InputAdornment position="start">S/</InputAdornment>,
-                                                },
-                                                htmlInput: { min: 0.01, step: 0.01 },
-                                            }}
-                                            error={!!errors.purchasePrice}
-                                            helperText={errors.purchasePrice}
-                                        />
-                                        <TextField
-                                            label="Precio de venta"
-                                            value={salePrice}
-                                            onChange={(e) => setSalePrice(e.target.value)}
-                                            onKeyDown={blockNegativeKeys}
-                                            fullWidth
-                                            size="small"
-                                            required
-                                            type="number"
-                                            slotProps={{
-                                                input: {
-                                                    startAdornment: <InputAdornment position="start">S/</InputAdornment>,
-                                                },
-                                                htmlInput: { min: 0.01, step: 0.01 },
-                                            }}
-                                            error={!!errors.salePrice}
-                                            helperText={errors.salePrice}
-                                        />
-                                    </Stack>
-                                </Box>
-                            </Stack>
+                    {loadingDetail ? (
+                        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+                            <CircularProgress />
                         </Box>
-
-                        <Divider sx={{ my: 3 }} />
-
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "flex-start",
-                                justifyContent: "space-between",
-                                gap: 2,
-                                flexWrap: "wrap",
-                                flexDirection: { xs: "column", sm: "row" },
-                                mb: 1.5,
-                            }}
-                        >
-                            <Box sx={{ minWidth: 0, flex: { sm: 1 } }}>
-                                <SectionTitle sx={{ mb: 0.5 }}>Variantes</SectionTitle>
-                                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 560 }}>
-                                    Edita variantes existentes o añade borradores con «Agregar variante». Las filas vacías se ignoran; las que tengan{" "}
-                                    <strong>stock</strong> se crean al guardar. El SKU es opcional.
-                                </Typography>
-                            </Box>
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={<AddRoundedIcon />}
-                                onClick={addVariantDraftRow}
-                                disabled={isBusy}
+                    ) : (
+                        <>
+                            <Box
                                 sx={{
-                                    flexShrink: 0,
-                                    alignSelf: { xs: "stretch", sm: "auto" },
-                                    borderColor: "primary.main",
-                                    color: "primary.main",
-                                    fontWeight: 700,
+                                    display: "grid",
+                                    gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                                    gap: { xs: 2.5, md: 4 },
+                                    alignItems: "start",
+                                    mb: 1,
                                 }}
                             >
-                                Agregar variante
-                            </Button>
-                        </Box>
-
-                        {activeVariants.length === 0 && (
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                No hay variantes activas. Pulsa «Agregar variante» para añadir borradores o crea variantes al guardar.
-                            </Typography>
-                        )}
-
-                        {activeVariants.map((v) => {
-                            const edit = variantEdits[v.id];
-                            if (!edit) return null;
-                            const variantStockLow = isVariantStockAtOrBelowMin(edit.stock, edit.minStock);
-                            const visible  = v.images.filter((img) => !pendingDeleteImageIds.includes(img.id));
-                            const toDelete = v.images.length - visible.length;
-                            const pending  = pendingUploadsByVariant[v.id];
-                            const pendingPrev = pending?.previews ?? [];
-                            const serverHero = visible[0];
-                            const hasServerHero = Boolean(serverHero);
-                            const hasAnyImage = visible.length > 0 || pendingPrev.length > 0;
-                            const serverTail = visible.slice(1);
-                            const pendingThumbs = hasServerHero
-                                ? pendingPrev.map((p, idx) => ({ p, idx }))
-                                : pendingPrev.slice(1).map((p, idx) => ({ p, idx: idx + 1 }));
-                            const openVariantFilePicker = () => {
-                                pendingPickerVariantIdRef.current = v.id;
-                                variantImagePickerRef.current?.click();
-                            };
-                            return (
-                                <Box
-                                    key={v.id}
-                                    sx={{
-                                        mb: 2.5,
-                                        p: { xs: 1.5, sm: 2.5 },
-                                        border: "1px solid",
-                                        borderColor: "divider",
-                                        borderRadius: 2,
-                                        bgcolor: variantCardBg,
-                                    }}
-                                >
-                                    {/* Variant header */}
-                                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1, mb: 2 }}>
-                                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", minWidth: 0 }}>
-                                            <Box sx={{ width: 13, height: 13, borderRadius: "50%", bgcolor: v.colorHexCode ?? "action.hover", border: "1px solid", borderColor: "divider", flexShrink: 0 }} />
-                                            <Typography variant="body2" fontWeight={600}>{v.colorName ?? "Sin color"} / {v.sizeName ?? "Sin talla"}</Typography>
-                                            <Typography variant="caption" color="text.secondary">Stock: {v.stock}{v.sku ? ` · SKU: ${v.sku}` : ""}</Typography>
-                                        </Box>
-                                        <Tooltip title="Eliminar variante">
-                                            <IconButton
-                                                size="small"
-                                                color="error"
-                                                aria-label="Eliminar variante"
-                                                onClick={() => setVariantIdPendingDelete(v.id)}
-                                                disabled={isBusy}
-                                            >
-                                                <DeleteOutlineRoundedIcon fontSize="small" />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </Box>
-
-                                    <Box
-                                        sx={{
-                                            display: "grid",
-                                            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                                            gap: 2.5,
-                                            alignItems: "start",
-                                        }}
-                                    >
-                                        <Box>
-                                            <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1 }}>
-                                                Color <Typography component="span" variant="caption" fontWeight={400}>(opcional)</Typography>
-                                            </Typography>
-                                            {colorsLoading ? <CircularProgress size={20} sx={{ mb: 1 }} /> : (
-                                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                                                    {colors.map((c: Color) => (
-                                                        <Tooltip key={c.id} title={c.name}>
-                                                            <Box
-                                                                onClick={() => setVEdit(v.id, { selectedColorId: c.id, showNewColor: false })}
-                                                                sx={{
-                                                                    width: 28, height: 28, borderRadius: "50%",
-                                                                    bgcolor: c.hexCode, border: "2px solid",
-                                                                    borderColor: edit.selectedColorId === c.id ? "primary.main" : "divider",
-                                                                    cursor: "pointer",
-                                                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                                                    boxShadow: edit.selectedColorId === c.id ? 3 : 0,
-                                                                    transition: "transform 0.15s",
-                                                                    "&:hover": { transform: "scale(1.18)" },
-                                                                }}
-                                                            >
-                                                                {edit.selectedColorId === c.id && (
-                                                                    <CheckRoundedIcon sx={{ fontSize: 12, color: "white", filter: "drop-shadow(0 0 2px #0006)" }} />
-                                                                )}
-                                                            </Box>
-                                                        </Tooltip>
-                                                    ))}
-                                                    <Tooltip title={edit.showNewColor ? "Cancelar" : "Nuevo color"}>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => setVEdit(v.id, { showNewColor: !edit.showNewColor, selectedColorId: edit.showNewColor ? (v.colorId ?? null) : null })}
-                                                            sx={{ width: 28, height: 28, border: "2px dashed", borderColor: edit.showNewColor ? "primary.main" : "divider", borderRadius: "50%" }}
-                                                        >
-                                                            <AddRoundedIcon sx={{ fontSize: 13 }} />
-                                                        </IconButton>
-                                                    </Tooltip>
-                                                </Box>
-                                            )}
-
-                                            {edit.showNewColor && (
-                                                <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 2, mt: 1.5, alignItems: "flex-start" }}>
-                                                    <TextField
-                                                        label="Nombre del color" value={edit.newColorName}
-                                                        onChange={(e) => setVEdit(v.id, { newColorName: e.target.value })}
-                                                        size="small" sx={{ flex: 1, width: "100%" }}
-                                                    />
-                                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                                        <Box
-                                                            component="input" type="color" value={edit.newColorHex}
-                                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVEdit(v.id, { newColorHex: e.target.value })}
-                                                            sx={{ width: 36, height: 36, p: "2px", border: "1px solid", borderColor: "divider", borderRadius: 1, cursor: "pointer", bgcolor: "transparent" }}
-                                                        />
-                                                        <TextField
-                                                            label="Hex" value={edit.newColorHex}
-                                                            onChange={(e) => setVEdit(v.id, { newColorHex: e.target.value })}
-                                                            size="small" sx={{ width: 110 }}
-                                                            slotProps={{ input: { startAdornment: <InputAdornment position="start">#</InputAdornment> } }}
-                                                        />
-                                                    </Box>
-                                                </Box>
-                                            )}
-                                        </Box>
-
-                                        <Box>
-                                            <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1 }}>
-                                                Talla <Typography component="span" variant="caption" fontWeight={400}>(opcional)</Typography>
-                                            </Typography>
-                                            {sizesLoading ? <CircularProgress size={20} sx={{ mb: 1 }} /> : (
-                                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                                                    {sizes.map((s: Size) => (
-                                                        <Chip
-                                                            key={s.id} label={s.name}
-                                                            onClick={() => setVEdit(v.id, { selectedSizeId: s.id, showNewSize: false })}
-                                                            color={edit.selectedSizeId === s.id ? "primary" : "default"}
-                                                            variant={edit.selectedSizeId === s.id ? "filled" : "outlined"}
-                                                            size="small" sx={{ cursor: "pointer" }}
-                                                        />
-                                                    ))}
-                                                    <Chip
-                                                        icon={<AddRoundedIcon />} label="Nueva talla"
-                                                        onClick={() => setVEdit(v.id, { showNewSize: !edit.showNewSize, selectedSizeId: edit.showNewSize ? (v.sizeId ?? null) : null })}
-                                                        variant="outlined" size="small"
-                                                        color={edit.showNewSize ? "primary" : "default"}
-                                                        sx={{ cursor: "pointer" }}
-                                                    />
-                                                </Box>
-                                            )}
-
-                                            {edit.showNewSize && (
-                                                <TextField
-                                                    label="Nombre de la talla" value={edit.newSizeName}
-                                                    onChange={(e) => setVEdit(v.id, { newSizeName: e.target.value })}
-                                                    size="small" sx={{ mt: 1.5, width: "100%", maxWidth: 280 }}
-                                                />
-                                            )}
-                                        </Box>
-                                    </Box>
-
-                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2.5, alignItems: "flex-start" }}>
+                                <Stack spacing={2}>
+                                    <Box>
+                                        <SectionTitle>Información básica</SectionTitle>
                                         <TextField
-                                            label="Stock"
-                                            value={edit.stock}
-                                            onChange={(e) => setVEdit(v.id, { stock: e.target.value })}
-                                            onKeyDown={blockNonIntegerKeys}
+                                            label="Nombre del producto"
+                                            placeholder="Ej. Polera básica algodón"
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            fullWidth
                                             size="small"
-                                            type="number"
-                                            sx={{ width: { xs: "100%", sm: 130 } }}
-                                            slotProps={{ htmlInput: { min: 0 } }}
+                                            required
+                                            error={!!errors.name}
+                                            helperText={errors.name}
                                         />
-                                        <TextField
-                                            label="Stock mínimo (variante)"
-                                            value={edit.minStock}
-                                            onChange={(e) => setVEdit(v.id, { minStock: e.target.value })}
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                                            Los cambios del producto y de cada variante se aplican al pulsar «Guardar cambios».
+                                        </Typography>
+                                    </Box>
+                                    <Box>
+                                        <SectionTitle>Stock mínimo (producto)</SectionTitle>
+                                        <NumericField
+                                            label="Stock mínimo"
+                                            value={minStock}
+                                            onChange={(e) => setMinStock(e.target.value)}
                                             size="small"
-                                            type="number"
-                                            sx={{ width: { xs: "100%", sm: 170 } }}
+                                            required
+                                            allowDecimals={false}
+                                            sx={{ width: "100%", maxWidth: { sm: 280 } }}
+                                            error={!!errors.minStock}
+                                            helperText={errors.minStock ?? "Alerta cuando el inventario total del producto esté bajo este umbral."}
                                             slotProps={{
                                                 htmlInput: { min: 0 },
-                                                formHelperText: {
-                                                    sx: variantStockLow ? { color: "warning.main", fontWeight: 500 } : {},
-                                                },
                                             }}
-                                            helperText={
-                                                variantStockLow
-                                                    ? "El stock actual está en o por debajo del mínimo de esta variante."
-                                                    : "Alerta por variante"
-                                            }
-                                        />
-                                        <TextField
-                                            label="SKU"
-                                            value={edit.sku}
-                                            onChange={(e) => setVEdit(v.id, { sku: e.target.value })}
-                                            size="small"
-                                            sx={{ flex: "1 1 200px", minWidth: 160 }}
-                                            helperText="Identificador único"
                                         />
                                     </Box>
+                                </Stack>
 
-                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2, alignItems: "flex-start" }}>
-                                        <TextField
-                                            label="Precio de venta (variante)"
-                                            value={edit.salePrice}
-                                            onChange={(e) => setVEdit(v.id, { salePrice: e.target.value })}
-                                            onKeyDown={blockNegativeKeys}
-                                            size="small"
-                                            type="number"
-                                            sx={{ width: { xs: "100%", sm: 200 } }}
-                                            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                                            helperText={`Opcional. Vacío = usa el del producto (${salePrice || "—"})`}
-                                        />
-                                        <TextField
-                                            label="Precio de compra (variante)"
-                                            value={edit.purchasePrice}
-                                            onChange={(e) => setVEdit(v.id, { purchasePrice: e.target.value })}
-                                            onKeyDown={blockNegativeKeys}
-                                            size="small"
-                                            type="number"
-                                            sx={{ width: { xs: "100%", sm: 220 } }}
-                                            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                                            helperText={`Opcional. Vacío = usa el del producto (${purchasePrice || "—"})`}
-                                        />
+                                <Stack spacing={2}>
+                                    <Box>
+                                        <SectionTitle>Categoría</SectionTitle>
+                                        <FormControl fullWidth size="small" required error={!!errors.categoryId}>
+                                            <Autocomplete
+                                                value={categories.find((c) => c.id === categoryId) ?? null}
+                                                options={categories}
+                                                getOptionLabel={(option) => option.name}
+                                                getOptionKey={(option) => option.id}
+                                                renderInput={(params) => (
+                                                    <TextField {...params} label="Elegir categoría" placeholder="Buscar…" />
+                                                )}
+                                                onChange={(_, value) => setCategoryId(value?.id ?? "")}
+                                                loading={catsLoading}
+                                            />
+                                            {errors.categoryId && <FormHelperText>{errors.categoryId}</FormHelperText>}
+                                        </FormControl>
                                     </Box>
+                                    <Box>
+                                        <SectionTitle>Precios</SectionTitle>
+                                        <Stack spacing={2}>
+                                            <NumericField
+                                                label="Precio de compra"
+                                                value={purchasePrice}
+                                                onChange={(e) => setPurchasePrice(e.target.value)}
+                                                fullWidth
+                                                size="small"
+                                                required
+                                                allowDecimals={true}
+                                                slotProps={{
+                                                    input: {
+                                                        startAdornment: <InputAdornment position="start">S/</InputAdornment>,
+                                                    },
+                                                    htmlInput: { min: 0.01, step: 0.01 },
+                                                }}
+                                                error={!!errors.purchasePrice}
+                                                helperText={errors.purchasePrice}
+                                            />
+                                            <NumericField
+                                                label="Precio de venta"
+                                                value={salePrice}
+                                                onChange={(e) => setSalePrice(e.target.value)}
+                                                fullWidth
+                                                size="small"
+                                                required
+                                                allowDecimals={true}
+                                                slotProps={{
+                                                    input: {
+                                                        startAdornment: <InputAdornment position="start">S/</InputAdornment>,
+                                                    },
+                                                    htmlInput: { min: 0.01, step: 0.01 },
+                                                }}
+                                                error={!!errors.salePrice}
+                                                helperText={errors.salePrice}
+                                            />
+                                        </Stack>
+                                    </Box>
+                                </Stack>
+                            </Box>
 
-                                    <Divider sx={{ my: 2 }} />
-                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, flexWrap: "wrap" }}>
-                                        <Typography variant="subtitle2" fontWeight={700} color="text.secondary">
-                                            Imágenes <Typography component="span" variant="caption" fontWeight={400}>(opcional)</Typography>
-                                        </Typography>
-                                        <Chip label={`${visible.length} en servidor`} size="small" variant="outlined" />
-                                        {pendingPrev.length > 0 && (
-                                            <Chip label={`+${pendingPrev.length} por subir`} size="small" color="primary" variant="outlined" />
-                                        )}
-                                        {toDelete > 0 && (
-                                            <Chip label={`${toDelete} se eliminará al guardar`} size="small" color="error" variant="outlined" />
-                                        )}
-                                    </Box>
-                                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-                                        La imagen principal lleva estrella; en servidor puedes cambiarla con la estrella vacía en otra foto. Fotos nuevas sin subir: la primera del recuadro será la principal al guardar (reordena con la estrella).
+                            <Divider sx={{ my: 3 }} />
+
+                            <Box
+                                sx={{
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                    justifyContent: "space-between",
+                                    gap: 2,
+                                    flexWrap: "wrap",
+                                    flexDirection: { xs: "column", sm: "row" },
+                                    mb: 1.5,
+                                }}
+                            >
+                                <Box sx={{ minWidth: 0, flex: { sm: 1 } }}>
+                                    <SectionTitle sx={{ mb: 0.5 }}>Variantes</SectionTitle>
+                                    <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 560 }}>
+                                        Edita variantes existentes o añade borradores con «Agregar variante». Las filas vacías se ignoran; las que tengan{" "}
+                                        <strong>stock</strong> se crean al guardar. El SKU es opcional.
                                     </Typography>
-
-                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "flex-start" }}>
-                                        {!hasAnyImage ? (
-                                            <VariantPrimaryImageDropSlot
-                                                onOpenPicker={openVariantFilePicker}
-                                                onDropFiles={(files) => appendPendingVariantImages(v.id, files)}
-                                                disabled={isBusy}
-                                            />
-                                        ) : hasServerHero && serverHero ? (
-                                            <VariantImageThumb
-                                                size={VARIANT_PRIMARY_IMAGE_SIZE}
-                                                src={imgUrl(serverHero.url)}
-                                                alt=""
-                                                onExpand={() => setImageLightbox({ src: imgUrl(serverHero.url), alt: "Imagen de variante" })}
-                                                onRemove={() => markForDeletion(serverHero.id)}
-                                                removeTooltip="Marcar para eliminar al guardar"
-                                                isMain={serverHero.isMain}
-                                                onSetAsMain={
-                                                    serverHero.isMain
-                                                        ? undefined
-                                                        : () => {
-                                                              void handleServerImageSetMain(serverHero.id);
-                                                          }
-                                                }
-                                                setAsMainDisabled={imageThumbMainBusy}
-                                            />
-                                        ) : pendingPrev[0] ? (
-                                            <VariantImageThumb
-                                                size={VARIANT_PRIMARY_IMAGE_SIZE}
-                                                src={pendingPrev[0].url}
-                                                alt={pendingPrev[0].name}
-                                                emphasized
-                                                isMain
-                                                onExpand={() => setImageLightbox({ src: pendingPrev[0].url, alt: pendingPrev[0].name })}
-                                                onRemove={() => removePendingVariantImageAt(v.id, 0)}
-                                            />
-                                        ) : null}
-
-                                        {serverTail.map((img) => (
-                                            <VariantImageThumb
-                                                key={img.id}
-                                                src={imgUrl(img.url)}
-                                                alt=""
-                                                onExpand={() => setImageLightbox({ src: imgUrl(img.url), alt: "Imagen de variante" })}
-                                                onRemove={() => markForDeletion(img.id)}
-                                                removeTooltip="Marcar para eliminar al guardar"
-                                                isMain={img.isMain}
-                                                onSetAsMain={
-                                                    img.isMain
-                                                        ? undefined
-                                                        : () => {
-                                                              void handleServerImageSetMain(img.id);
-                                                          }
-                                                }
-                                                setAsMainDisabled={imageThumbMainBusy}
-                                            />
-                                        ))}
-
-                                        {pendingThumbs.map(({ p, idx }) => (
-                                            <VariantImageThumb
-                                                key={`pend-${p.name}-${idx}`}
-                                                src={p.url}
-                                                alt={p.name}
-                                                emphasized
-                                                onExpand={() => setImageLightbox({ src: p.url, alt: p.name })}
-                                                onRemove={() => removePendingVariantImageAt(v.id, idx)}
-                                                onSetAsMain={
-                                                    idx > 0 ? () => makePendingImageMain(v.id, idx) : undefined
-                                                }
-                                                setAsMainDisabled={imageThumbMainBusy}
-                                            />
-                                        ))}
-
-                                        {hasAnyImage ? (
-                                            <VariantAddMoreImagesButton onOpenPicker={openVariantFilePicker} disabled={isBusy} />
-                                        ) : null}
-                                    </Box>
                                 </Box>
-                            );
-                        })}
-
-                        <input
-                            ref={variantImagePickerRef}
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            style={{ display: "none" }}
-                            onChange={handleVariantImageFileChange}
-                        />
-
-                        {variantDrafts.length > 0 && (
-                            <>
-                                <Divider sx={{ my: 3 }} />
-                                <SectionTitle sx={{ mb: 0.5 }}>Nuevas variantes (borrador)</SectionTitle>
-                                <Typography variant="body2" color="text.secondary" sx={{ display: "block", mb: 2, maxWidth: 560 }}>
-                                    Se crean en el servidor al pulsar «Guardar cambios». Las filas totalmente vacías se omiten.
-                                </Typography>
-                            </>
-                        )}
-
-                        {variantDrafts.map((vd, vi) => {
-                            const ep = `nd${vi}`;
-                            const draftStockLow = isVariantStockAtOrBelowMin(vd.stock, vd.minStock);
-                            const draftFileId = `draft-file-${vd.rowId}`;
-                            const draftFirst = vd.imagePreviews[0];
-                            const draftRest = vd.imagePreviews.slice(1);
-                            return (
-                                <Box
-                                    key={vd.rowId}
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<AddRoundedIcon />}
+                                    onClick={addVariantDraftRow}
+                                    disabled={isBusy}
                                     sx={{
-                                        mb: 2.5,
-                                        p: { xs: 1.5, sm: 2.5 },
-                                        border: "2px dashed",
+                                        flexShrink: 0,
+                                        alignSelf: { xs: "stretch", sm: "auto" },
                                         borderColor: "primary.main",
-                                        borderRadius: 2,
-                                        bgcolor: variantCardBg,
+                                        color: "primary.main",
+                                        fontWeight: 700,
                                     }}
                                 >
-                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
-                                        <Typography variant="subtitle2" fontWeight={700}>
-                                            Nueva variante {vi + 1}
-                                        </Typography>
-                                        <Tooltip title="Quitar esta fila">
-                                            <IconButton
-                                                size="small"
-                                                color="error"
-                                                aria-label="Quitar borrador"
-                                                onClick={() => removeVariantDraftRow(vd.rowId)}
-                                                disabled={isBusy}
-                                            >
-                                                <DeleteOutlineRoundedIcon fontSize="small" />
-                                            </IconButton>
-                                        </Tooltip>
-                                    </Box>
+                                    Agregar variante
+                                </Button>
+                            </Box>
 
-                                    <Box
-                                        sx={{
-                                            display: "grid",
-                                            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                                            gap: 2.5,
-                                            alignItems: "start",
-                                        }}
-                                    >
-                                        <Box>
-                                            <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1 }}>
-                                                Color <Typography component="span" variant="caption" fontWeight={400}>(opcional)</Typography>
-                                            </Typography>
-                                            {colorsLoading ? (
-                                                <CircularProgress size={22} sx={{ mb: 1 }} />
-                                            ) : (
-                                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                                                    {colors.map((c) => (
-                                                        <Tooltip key={c.id} title={c.name}>
-                                                            <Box
-                                                                onClick={() => setDraft(vd.rowId, { selectedColor: c, showNewColor: false })}
-                                                                sx={{
-                                                                    width: 30, height: 30, borderRadius: "50%",
-                                                                    bgcolor: c.hexCode,
-                                                                    border: "2px solid",
-                                                                    borderColor: vd.selectedColor?.id === c.id ? "primary.main" : "divider",
-                                                                    cursor: "pointer",
-                                                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                                                    boxShadow: vd.selectedColor?.id === c.id ? 3 : 0,
-                                                                    transition: "transform 0.15s",
-                                                                    "&:hover": { transform: "scale(1.18)" },
-                                                                }}
-                                                            >
-                                                                {vd.selectedColor?.id === c.id && (
-                                                                    <CheckRoundedIcon sx={{ fontSize: 13, color: "white", filter: "drop-shadow(0 0 2px #0006)" }} />
-                                                                )}
-                                                            </Box>
-                                                        </Tooltip>
-                                                    ))}
-                                                    <Tooltip title={vd.showNewColor ? "Cancelar nuevo color" : "Crear nuevo color"}>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => setDraft(vd.rowId, { showNewColor: !vd.showNewColor, selectedColor: null })}
-                                                            sx={{
-                                                                width: 30, height: 30,
-                                                                border: "2px dashed",
-                                                                borderColor: vd.showNewColor ? "primary.main" : "divider",
-                                                                borderRadius: "50%",
-                                                            }}
-                                                        >
-                                                            <AddRoundedIcon sx={{ fontSize: 14 }} />
-                                                        </IconButton>
+                            <TableContainer component={Paper} variant="outlined" sx={{ display: { xs: "none", md: "block" }, mb: 3, border: "1px solid", borderColor: "divider", borderRadius: 2, overflowX: "auto" }}>
+                                <Table size="small" sx={{ minWidth: 1000 }}>
+                                    <TableHead sx={{ bgcolor: (t) => t.palette.mode === "dark" ? alpha(t.palette.common.white, 0.02) : alpha(t.palette.common.black, 0.015) }}>
+                                        <TableRow>
+                                            <TableCell sx={{ fontWeight: 700, width: 70 }}>Imagen</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, width: 180 }}>Color</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, width: 140 }}>Talla</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, width: 120 }}>SKU</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, width: 80 }}>Stock</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, width: 85 }}>Min. Stock</TableCell>
+                                            <TableCell sx={{ fontWeight: 700, width: 120 }}>
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                    P. Compra
+                                                    <Tooltip title="Si se deja vacío, se utilizará el precio de compra base del producto (referencial).">
+                                                        <InfoRoundedIcon sx={{ fontSize: "0.95rem", color: "text.secondary", cursor: "help" }} />
                                                     </Tooltip>
                                                 </Box>
-                                            )}
-
-                                            {vd.showNewColor && (
-                                                <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 2, mt: 1.5, alignItems: "flex-start" }}>
-                                                    <TextField
-                                                        label="Nombre del color" value={vd.newColorName}
-                                                        onChange={(e) => setDraft(vd.rowId, { newColorName: e.target.value })}
-                                                        size="small" sx={{ flex: 1, width: "100%" }}
-                                                        error={!!errors[`${ep}_newColorName`]} helperText={errors[`${ep}_newColorName`]}
-                                                    />
-                                                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                                        <Box
-                                                            component="input"
-                                                            type="color"
-                                                            value={vd.newColorHex}
-                                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft(vd.rowId, { newColorHex: e.target.value })}
-                                                            sx={{
-                                                                width: 38, height: 38, p: "2px",
-                                                                border: "1px solid", borderColor: "divider",
-                                                                borderRadius: 1, cursor: "pointer",
-                                                                bgcolor: "transparent",
-                                                            }}
-                                                        />
-                                                        <TextField
-                                                            label="Hex" value={vd.newColorHex}
-                                                            onChange={(e) => setDraft(vd.rowId, { newColorHex: e.target.value })}
-                                                            size="small" sx={{ width: 110 }}
-                                                            slotProps={{ input: { startAdornment: <InputAdornment position="start">#</InputAdornment> } }}
-                                                        />
-                                                    </Box>
+                                            </TableCell>
+                                            <TableCell sx={{ fontWeight: 700, width: 120 }}>
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                    P. Venta
+                                                    <Tooltip title="Si se deja vacío, se utilizará el precio de venta base del producto (referencial).">
+                                                        <InfoRoundedIcon sx={{ fontSize: "0.95rem", color: "text.secondary", cursor: "help" }} />
+                                                    </Tooltip>
                                                 </Box>
+                                            </TableCell>
+                                            <TableCell sx={{ fontWeight: 700, width: 60 }} align="center">Acción</TableCell>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {activeVariants.length === 0 && variantDrafts.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        No hay variantes. Pulsa «Agregar variante» para comenzar.
+                                                    </Typography>
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+
+                                        {/* Existing Active Variants */}
+                                        {activeVariants.map((v) => {
+                                            const edit = variantEdits[v.id];
+                                            if (!edit) return null;
+
+                                            const visible = v.images.filter((img) => !pendingDeleteImageIds.includes(img.id));
+                                            const pending = pendingUploadsByVariant[v.id];
+                                            const totalImgCount = visible.length + (pending?.files?.length ?? 0);
+                                            const mainImgSrc = getVariantMainImage(v.id);
+
+                                            return (
+                                                <Fragment key={v.id}>
+                                                    <TableRow hover>
+                                                        {/* Cell: Thumbnail */}
+                                                        <TableCell>
+                                                            <Tooltip title="Gestionar imágenes">
+                                                                <Box
+                                                                    onClick={() => setActiveImageEdit({ type: "existing", id: v.id })}
+                                                                    sx={{
+                                                                        width: 44,
+                                                                        height: 44,
+                                                                        borderRadius: 1,
+                                                                        border: "1px solid",
+                                                                        borderColor: "divider",
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center",
+                                                                        position: "relative",
+                                                                        cursor: "pointer",
+                                                                        bgcolor: "action.hover",
+                                                                        overflow: "hidden",
+                                                                        transition: "all 0.2s",
+                                                                        "&:hover": {
+                                                                            borderColor: "primary.main",
+                                                                            boxShadow: 2,
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    {mainImgSrc ? (
+                                                                        <Box component="img" src={mainImgSrc} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                                    ) : (
+                                                                        <PhotoCameraRoundedIcon sx={{ fontSize: 20, color: "text.secondary" }} />
+                                                                    )}
+                                                                    {totalImgCount > 0 && (
+                                                                        <Box sx={{
+                                                                            position: "absolute", bottom: -2, right: -2,
+                                                                            bgcolor: "text.secondary", color: "background.paper",
+                                                                            borderRadius: "50%", width: 16, height: 16,
+                                                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                                                            fontSize: 10, fontWeight: "bold"
+                                                                        }}>
+                                                                            {totalImgCount}
+                                                                        </Box>
+                                                                    )}
+                                                                </Box>
+                                                            </Tooltip>
+                                                        </TableCell>
+
+                                                        {/* Cell: Color */}
+                                                        <TableCell>
+                                                            {!edit.showNewColor ? (
+                                                                <FormControl size="small" fullWidth sx={{ minWidth: 120 }}>
+                                                                    <Select
+                                                                        value={edit.selectedColorId ?? ""}
+                                                                        displayEmpty
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value as unknown;
+                                                                            if (val === "new") {
+                                                                                setVEdit(v.id, { showNewColor: true, selectedColorId: null });
+                                                                            } else {
+                                                                                setVEdit(v.id, { selectedColorId: val === "" ? null : Number(val) });
+                                                                            }
+                                                                        }}
+                                                                        sx={{ height: 40 }}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <MenuItem value="">
+                                                                            <Typography variant="body2" color="text.secondary">Ninguno</Typography>
+                                                                        </MenuItem>
+                                                                        {colors.map((c: Color) => (
+                                                                            <MenuItem key={c.id} value={c.id}>
+                                                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                                                                    <Box sx={{ width: 14, height: 14, borderRadius: "50%", bgcolor: c.hexCode, border: "1px solid", borderColor: "divider", flexShrink: 0 }} />
+                                                                                    <Typography variant="body2">{c.name}</Typography>
+                                                                                </Box>
+                                                                            </MenuItem>
+                                                                        ))}
+                                                                        <MenuItem value="new" sx={{ borderTop: 1, borderColor: "divider", color: "primary.main", fontWeight: "bold" }}>
+                                                                            + Crear nuevo...
+                                                                        </MenuItem>
+                                                                    </Select>
+                                                                </FormControl>
+                                                            ) : (
+                                                                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", minWidth: 160 }}>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        placeholder="Nombre color"
+                                                                        value={edit.newColorName}
+                                                                        onChange={(e) => setVEdit(v.id, { newColorName: e.target.value })}
+                                                                        sx={{ flex: 1 }}
+                                                                        disabled={isBusy}
+                                                                    />
+                                                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                        <Box
+                                                                            component="input"
+                                                                            type="color"
+                                                                            value={edit.newColorHex}
+                                                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVEdit(v.id, { newColorHex: e.target.value })}
+                                                                            sx={{ width: 28, height: 28, p: 0, border: "1px solid", borderColor: "divider", borderRadius: "50%", cursor: "pointer", bgcolor: "transparent" }}
+                                                                            disabled={isBusy}
+                                                                        />
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            color="error"
+                                                                            onClick={() => setVEdit(v.id, { showNewColor: false, newColorName: "", selectedColorId: v.colorId ?? null })}
+                                                                            disabled={isBusy}
+                                                                        >
+                                                                            <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                                                        </IconButton>
+                                                                    </Box>
+                                                                </Box>
+                                                            )}
+                                                        </TableCell>
+
+                                                        {/* Cell: Talla */}
+                                                        <TableCell>
+                                                            {!edit.showNewSize ? (
+                                                                <FormControl size="small" fullWidth sx={{ minWidth: 100 }}>
+                                                                    <Select
+                                                                        value={edit.selectedSizeId ?? ""}
+                                                                        displayEmpty
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value as unknown;
+                                                                            if (val === "new") {
+                                                                                setVEdit(v.id, { showNewSize: true, selectedSizeId: null });
+                                                                            } else {
+                                                                                setVEdit(v.id, { selectedSizeId: val === "" ? null : Number(val) });
+                                                                            }
+                                                                        }}
+                                                                        sx={{ height: 40 }}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <MenuItem value="">
+                                                                            <Typography variant="body2" color="text.secondary">Ninguno</Typography>
+                                                                        </MenuItem>
+                                                                        {sizes.map((s: Size) => (
+                                                                            <MenuItem key={s.id} value={s.id}>
+                                                                                <Typography variant="body2">{s.name}</Typography>
+                                                                            </MenuItem>
+                                                                        ))}
+                                                                        <MenuItem value="new" sx={{ borderTop: 1, borderColor: "divider", color: "primary.main", fontWeight: "bold" }}>
+                                                                            + Crear nueva...
+                                                                        </MenuItem>
+                                                                    </Select>
+                                                                </FormControl>
+                                                            ) : (
+                                                                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", minWidth: 140 }}>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        placeholder="Nombre talla"
+                                                                        value={edit.newSizeName}
+                                                                        onChange={(e) => setVEdit(v.id, { newSizeName: e.target.value })}
+                                                                        sx={{ flex: 1 }}
+                                                                        disabled={isBusy}
+                                                                    />
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        color="error"
+                                                                        onClick={() => setVEdit(v.id, { showNewSize: false, newSizeName: "", selectedSizeId: v.sizeId ?? null })}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                                                    </IconButton>
+                                                                </Box>
+                                                            )}
+                                                        </TableCell>
+
+                                                        {/* Cell: SKU */}
+                                                        <TableCell>
+                                                            <TextField
+                                                                size="small"
+                                                                value={edit.sku}
+                                                                onChange={(e) => setVEdit(v.id, { sku: e.target.value })}
+                                                                sx={{ width: 110 }}
+                                                                disabled={isBusy}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Stock */}
+                                                        <TableCell>
+                                                            <NumericField
+                                                                size="small"
+                                                                value={edit.stock}
+                                                                onChange={(e) => setVEdit(v.id, { stock: e.target.value })}
+                                                                onBlur={(e) => {
+                                                                    if (!e.target.value.trim()) {
+                                                                        setVEdit(v.id, { stock: "0" });
+                                                                    }
+                                                                }}
+                                                                allowDecimals={false}
+                                                                sx={{ width: 70 }}
+                                                                slotProps={{ htmlInput: { min: 0 } }}
+                                                                disabled={isBusy}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Stock Mínimo */}
+                                                        <TableCell>
+                                                            <NumericField
+                                                                size="small"
+                                                                value={edit.minStock}
+                                                                onChange={(e) => setVEdit(v.id, { minStock: e.target.value })}
+                                                                onBlur={(e) => {
+                                                                    if (!e.target.value.trim()) {
+                                                                        setVEdit(v.id, { minStock: "0" });
+                                                                    }
+                                                                }}
+                                                                allowDecimals={false}
+                                                                sx={{ width: 70 }}
+                                                                slotProps={{ htmlInput: { min: 0 } }}
+                                                                disabled={isBusy}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Precio Compra */}
+                                                        <TableCell>
+                                                            <NumericField
+                                                                size="small"
+                                                                value={edit.purchasePrice}
+                                                                onChange={(e) => setVEdit(v.id, { purchasePrice: e.target.value })}
+                                                                allowDecimals={true}
+                                                                sx={{ width: 95 }}
+                                                                placeholder={purchasePrice || "—"}
+                                                                disabled={isBusy}
+                                                                slotProps={{
+                                                                    input: {
+                                                                        startAdornment: <InputAdornment position="start" sx={{ mr: 0.25 }}><Typography variant="caption" sx={{ fontSize: "0.75rem" }}>S/</Typography></InputAdornment>,
+                                                                    },
+                                                                    htmlInput: { min: 0, step: "0.01" }
+                                                                }}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Precio Venta */}
+                                                        <TableCell>
+                                                            <NumericField
+                                                                size="small"
+                                                                value={edit.salePrice}
+                                                                onChange={(e) => setVEdit(v.id, { salePrice: e.target.value })}
+                                                                allowDecimals={true}
+                                                                sx={{ width: 95 }}
+                                                                placeholder={salePrice || "—"}
+                                                                disabled={isBusy}
+                                                                slotProps={{
+                                                                    input: {
+                                                                        startAdornment: <InputAdornment position="start" sx={{ mr: 0.25 }}><Typography variant="caption" sx={{ fontSize: "0.75rem" }}>S/</Typography></InputAdornment>,
+                                                                    },
+                                                                    htmlInput: { min: 0, step: "0.01" }
+                                                                }}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Acciones */}
+                                                        <TableCell align="center">
+                                                            <Tooltip title="Eliminar variante">
+                                                                <IconButton
+                                                                    size="small"
+                                                                    color="error"
+                                                                    onClick={() => setVariantIdPendingDelete(v.id)}
+                                                                    disabled={isBusy}
+                                                                >
+                                                                    <DeleteOutlineRoundedIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </TableCell>
+                                                    </TableRow>
+
+                                                    {/* Error Row */}
+                                                    {errors[`v_${v.id}_combination`] && (
+                                                        <TableRow sx={{ bgcolor: (t) => alpha(t.palette.error.main, 0.04) }}>
+                                                            <TableCell colSpan={9} sx={{ py: 0.5 }}>
+                                                                <Typography variant="caption" color="error.main" fontWeight={650} sx={{ pl: 2 }}>
+                                                                    ⚠️ {errors[`v_${v.id}_combination`]}
+                                                                </Typography>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </Fragment>
+                                            );
+                                        })}
+
+                                        {/* Variant Draft Rows */}
+                                        {variantDrafts.map((vd, vi) => {
+                                            const ep = `nd${vi}`;
+
+                                            const draftFileId = `draft-file-${vd.rowId}`;
+                                            const mainImgSrc = getDraftMainImage(vd);
+                                            const totalDraftCount = vd.imagePreviews.length;
+
+                                            return (
+                                                <Fragment key={vd.rowId}>
+                                                    <TableRow sx={{ bgcolor: (t) => t.palette.mode === "dark" ? alpha(t.palette.primary.main, 0.04) : alpha(t.palette.primary.main, 0.02) }}>
+                                                        {/* Cell: Thumbnail (Draft) */}
+                                                        <TableCell>
+                                                            <Tooltip title="Gestionar imágenes (Borrador)">
+                                                                <Box
+                                                                    onClick={() => setActiveImageEdit({ type: "draft", rowId: vd.rowId })}
+                                                                    sx={{
+                                                                        width: 44,
+                                                                        height: 44,
+                                                                        borderRadius: 1,
+                                                                        border: "1px dashed",
+                                                                        borderColor: "primary.main",
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center",
+                                                                        position: "relative",
+                                                                        cursor: "pointer",
+                                                                        bgcolor: "action.hover",
+                                                                        overflow: "hidden",
+                                                                        transition: "all 0.2s",
+                                                                        "&:hover": {
+                                                                            borderColor: "primary.dark",
+                                                                            boxShadow: 2,
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    {mainImgSrc ? (
+                                                                        <Box component="img" src={mainImgSrc} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                                    ) : (
+                                                                        <PhotoCameraRoundedIcon sx={{ fontSize: 20, color: "primary.main" }} />
+                                                                    )}
+                                                                    {totalDraftCount > 0 && (
+                                                                        <Box sx={{
+                                                                            position: "absolute", bottom: -2, right: -2,
+                                                                            bgcolor: "primary.main", color: "primary.contrastText",
+                                                                            borderRadius: "50%", width: 16, height: 16,
+                                                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                                                            fontSize: 10, fontWeight: "bold"
+                                                                        }}>
+                                                                            {totalDraftCount}
+                                                                        </Box>
+                                                                    )}
+                                                                </Box>
+                                                            </Tooltip>
+                                                            <input
+                                                                id={draftFileId}
+                                                                type="file"
+                                                                accept="image/*"
+                                                                multiple
+                                                                hidden
+                                                                onChange={handleDraftImageFileChange}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Color (Draft) */}
+                                                        <TableCell>
+                                                            {!vd.showNewColor ? (
+                                                                <FormControl size="small" fullWidth sx={{ minWidth: 120 }}>
+                                                                    <Select
+                                                                        value={vd.selectedColor?.id ?? ""}
+                                                                        displayEmpty
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value as unknown;
+                                                                            if (val === "new") {
+                                                                                setDraft(vd.rowId, { showNewColor: true, selectedColor: null });
+                                                                            } else {
+                                                                                const chosen = colors.find((c) => c.id === Number(val)) || null;
+                                                                                setDraft(vd.rowId, { selectedColor: chosen });
+                                                                            }
+                                                                        }}
+                                                                        sx={{ height: 40 }}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <MenuItem value="">
+                                                                            <Typography variant="body2" color="text.secondary">Ninguno</Typography>
+                                                                        </MenuItem>
+                                                                        {colors.map((c: Color) => (
+                                                                            <MenuItem key={c.id} value={c.id}>
+                                                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                                                                    <Box sx={{ width: 14, height: 14, borderRadius: "50%", bgcolor: c.hexCode, border: "1px solid", borderColor: "divider", flexShrink: 0 }} />
+                                                                                    <Typography variant="body2">{c.name}</Typography>
+                                                                                </Box>
+                                                                            </MenuItem>
+                                                                        ))}
+                                                                        <MenuItem value="new" sx={{ borderTop: 1, borderColor: "divider", color: "primary.main", fontWeight: "bold" }}>
+                                                                            + Crear nuevo...
+                                                                        </MenuItem>
+                                                                    </Select>
+                                                                </FormControl>
+                                                            ) : (
+                                                                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", minWidth: 160 }}>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        placeholder="Nombre color"
+                                                                        value={vd.newColorName}
+                                                                        onChange={(e) => setDraft(vd.rowId, { newColorName: e.target.value })}
+                                                                        sx={{ flex: 1 }}
+                                                                        error={!!errors[`${ep}_newColorName`]}
+                                                                        disabled={isBusy}
+                                                                    />
+                                                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                        <Box
+                                                                            component="input"
+                                                                            type="color"
+                                                                            value={vd.newColorHex}
+                                                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft(vd.rowId, { newColorHex: e.target.value })}
+                                                                            sx={{ width: 28, height: 28, p: 0, border: "1px solid", borderColor: "divider", borderRadius: "50%", cursor: "pointer", bgcolor: "transparent" }}
+                                                                            disabled={isBusy}
+                                                                        />
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            color="error"
+                                                                            onClick={() => setDraft(vd.rowId, { showNewColor: false, newColorName: "", selectedColor: null })}
+                                                                            disabled={isBusy}
+                                                                        >
+                                                                            <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                                                        </IconButton>
+                                                                    </Box>
+                                                                </Box>
+                                                            )}
+                                                        </TableCell>
+
+                                                        {/* Cell: Talla (Draft) */}
+                                                        <TableCell>
+                                                            {!vd.showNewSize ? (
+                                                                <FormControl size="small" fullWidth sx={{ minWidth: 100 }}>
+                                                                    <Select
+                                                                        value={vd.selectedSize?.id ?? ""}
+                                                                        displayEmpty
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value as unknown;
+                                                                            if (val === "new") {
+                                                                                setDraft(vd.rowId, { showNewSize: true, selectedSize: null });
+                                                                            } else {
+                                                                                const chosen = sizes.find((s) => s.id === Number(val)) || null;
+                                                                                setDraft(vd.rowId, { selectedSize: chosen });
+                                                                            }
+                                                                        }}
+                                                                        sx={{ height: 40 }}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <MenuItem value="">
+                                                                            <Typography variant="body2" color="text.secondary">Ninguno</Typography>
+                                                                        </MenuItem>
+                                                                        {sizes.map((s: Size) => (
+                                                                            <MenuItem key={s.id} value={s.id}>
+                                                                                <Typography variant="body2">{s.name}</Typography>
+                                                                            </MenuItem>
+                                                                        ))}
+                                                                        <MenuItem value="new" sx={{ borderTop: 1, borderColor: "divider", color: "primary.main", fontWeight: "bold" }}>
+                                                                            + Crear nueva...
+                                                                        </MenuItem>
+                                                                    </Select>
+                                                                </FormControl>
+                                                            ) : (
+                                                                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center", minWidth: 140 }}>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        placeholder="Nombre talla"
+                                                                        value={vd.newSizeName}
+                                                                        onChange={(e) => setDraft(vd.rowId, { newSizeName: e.target.value })}
+                                                                        sx={{ flex: 1 }}
+                                                                        error={!!errors[`${ep}_newSizeName`]}
+                                                                        disabled={isBusy}
+                                                                    />
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        color="error"
+                                                                        onClick={() => setDraft(vd.rowId, { showNewSize: false, newSizeName: "", selectedSize: null })}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                                                    </IconButton>
+                                                                </Box>
+                                                            )}
+                                                        </TableCell>
+
+                                                        {/* Cell: SKU (Draft) */}
+                                                        <TableCell>
+                                                            <TextField
+                                                                size="small"
+                                                                value={vd.sku}
+                                                                onChange={(e) => setDraft(vd.rowId, { sku: e.target.value })}
+                                                                sx={{ width: 110 }}
+                                                                disabled={isBusy}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Stock (Draft) */}
+                                                        <TableCell>
+                                                            <NumericField
+                                                                size="small"
+                                                                value={vd.stock}
+                                                                onChange={(e) => setDraft(vd.rowId, { stock: e.target.value })}
+                                                                onBlur={(e) => {
+                                                                    if (!e.target.value.trim()) {
+                                                                        setDraft(vd.rowId, { stock: "0" });
+                                                                        setErrors((prev) => {
+                                                                            const copy = { ...prev };
+                                                                            delete copy[`${ep}_stock`];
+                                                                            return copy;
+                                                                        });
+                                                                    }
+                                                                }}
+                                                                allowDecimals={false}
+                                                                sx={{ width: 70 }}
+                                                                slotProps={{ htmlInput: { min: 0 } }}
+                                                                error={!!errors[`${ep}_stock`]}
+                                                                helperText={errors[`${ep}_stock`]}
+                                                                disabled={isBusy}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Stock Mínimo (Draft) */}
+                                                        <TableCell>
+                                                            <NumericField
+                                                                size="small"
+                                                                value={vd.minStock}
+                                                                onChange={(e) => setDraft(vd.rowId, { minStock: e.target.value })}
+                                                                onBlur={(e) => {
+                                                                    if (!e.target.value.trim()) {
+                                                                        setDraft(vd.rowId, { minStock: "0" });
+                                                                    }
+                                                                }}
+                                                                allowDecimals={false}
+                                                                sx={{ width: 70 }}
+                                                                slotProps={{ htmlInput: { min: 0 } }}
+                                                                disabled={isBusy}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Precio Compra (Draft) */}
+                                                        <TableCell>
+                                                            <NumericField
+                                                                size="small"
+                                                                value={vd.purchasePrice}
+                                                                onChange={(e) => setDraft(vd.rowId, { purchasePrice: e.target.value })}
+                                                                allowDecimals={true}
+                                                                sx={{ width: 95 }}
+                                                                placeholder={purchasePrice || "—"}
+                                                                disabled={isBusy}
+                                                                slotProps={{
+                                                                    input: {
+                                                                        startAdornment: <InputAdornment position="start" sx={{ mr: 0.25 }}><Typography variant="caption" sx={{ fontSize: "0.75rem" }}>S/</Typography></InputAdornment>,
+                                                                    },
+                                                                    htmlInput: { min: 0, step: "0.01" }
+                                                                }}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Precio Venta (Draft) */}
+                                                        <TableCell>
+                                                            <NumericField
+                                                                size="small"
+                                                                value={vd.salePrice}
+                                                                onChange={(e) => setDraft(vd.rowId, { salePrice: e.target.value })}
+                                                                allowDecimals={true}
+                                                                sx={{ width: 95 }}
+                                                                placeholder={salePrice || "—"}
+                                                                disabled={isBusy}
+                                                                slotProps={{
+                                                                    input: {
+                                                                        startAdornment: <InputAdornment position="start" sx={{ mr: 0.25 }}><Typography variant="caption" sx={{ fontSize: "0.75rem" }}>S/</Typography></InputAdornment>,
+                                                                    },
+                                                                    htmlInput: { min: 0, step: "0.01" }
+                                                                }}
+                                                            />
+                                                        </TableCell>
+
+                                                        {/* Cell: Acciones (Draft) */}
+                                                        <TableCell align="center">
+                                                            <Tooltip title="Quitar esta fila">
+                                                                <IconButton
+                                                                    size="small"
+                                                                    color="error"
+                                                                    onClick={() => removeVariantDraftRow(vd.rowId)}
+                                                                    disabled={isBusy}
+                                                                >
+                                                                    <DeleteOutlineRoundedIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </TableCell>
+                                                    </TableRow>
+
+                                                    {/* Error Row (Draft) */}
+                                                    {errors[`${ep}_combination`] && (
+                                                        <TableRow sx={{ bgcolor: (t) => alpha(t.palette.error.main, 0.04) }}>
+                                                            <TableCell colSpan={9} sx={{ py: 0.5 }}>
+                                                                <Typography variant="caption" color="error.main" fontWeight={650} sx={{ pl: 2 }}>
+                                                                    ⚠️ {errors[`${ep}_combination`]}
+                                                                </Typography>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </Fragment>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+
+                            {/* Mobile Cards View */}
+                            <Box sx={{ display: { xs: "flex", md: "none" }, flexDirection: "column", gap: 2, mb: 3 }}>
+                                {activeVariants.length === 0 && variantDrafts.length === 0 ? (
+                                    <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 3 }}>
+                                        No hay variantes. Pulsa «Agregar variante» para comenzar.
+                                    </Typography>
+                                ) : (
+                                    <>
+                                        {/* Existing Active Variants (Mobile Cards) */}
+                                        {activeVariants.map((v, vi) => {
+                                            const edit = variantEdits[v.id];
+                                            if (!edit) return null;
+
+                                            const visible = v.images.filter((img) => !pendingDeleteImageIds.includes(img.id));
+                                            const pending = pendingUploadsByVariant[v.id];
+                                            const totalImgCount = visible.length + (pending?.files?.length ?? 0);
+                                            const mainImgSrc = getVariantMainImage(v.id);
+
+                                            return (
+                                                <Paper
+                                                    key={v.id}
+                                                    variant="outlined"
+                                                    sx={{
+                                                        p: 2,
+                                                        borderRadius: 2,
+                                                        position: "relative",
+                                                        bgcolor: (t) => t.palette.mode === "dark" ? alpha(t.palette.common.white, 0.01) : alpha(t.palette.common.black, 0.01),
+                                                        border: "1px solid",
+                                                        borderColor: errors[`v_${v.id}_combination`] ? "error.main" : "divider",
+                                                    }}
+                                                >
+                                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                                                        <Typography variant="subtitle2" fontWeight={800} color="primary.main">
+                                                            Variante #{vi + 1} (Existente)
+                                                        </Typography>
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            onClick={() => setVariantIdPendingDelete(v.id)}
+                                                            disabled={isBusy}
+                                                            aria-label="Eliminar variante"
+                                                        >
+                                                            <DeleteOutlineRoundedIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Box>
+
+                                                    <Stack spacing={2} sx={{ width: "100%", minWidth: 0 }}>
+                                                        {/* Row 1: Imagen and SKU side by side */}
+                                                        <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 2, alignItems: "center" }}>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Imagen</Typography>
+                                                                <Tooltip title="Gestionar imágenes">
+                                                                    <Box
+                                                                        onClick={() => setActiveImageEdit({ type: "existing", id: v.id })}
+                                                                        sx={{
+                                                                            width: 56,
+                                                                            height: 56,
+                                                                            borderRadius: 1,
+                                                                            border: "1px solid",
+                                                                            borderColor: "divider",
+                                                                            display: "flex",
+                                                                            alignItems: "center",
+                                                                            justifyContent: "center",
+                                                                            position: "relative",
+                                                                            cursor: "pointer",
+                                                                            bgcolor: "action.hover",
+                                                                            overflow: "hidden",
+                                                                        }}
+                                                                    >
+                                                                        {mainImgSrc ? (
+                                                                            <Box component="img" src={mainImgSrc} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                                        ) : (
+                                                                            <PhotoCameraRoundedIcon sx={{ fontSize: 24, color: "text.secondary" }} />
+                                                                        )}
+                                                                        {totalImgCount > 0 && (
+                                                                            <Box sx={{
+                                                                                position: "absolute", bottom: -2, right: -2,
+                                                                                bgcolor: "text.secondary", color: "background.paper",
+                                                                                borderRadius: "50%", width: 18, height: 18,
+                                                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                                                fontSize: 10, fontWeight: "bold"
+                                                                            }}>
+                                                                                {totalImgCount}
+                                                                            </Box>
+                                                                        )}
+                                                                    </Box>
+                                                                </Tooltip>
+                                                            </Box>
+                                                            <Box sx={{ flex: 1 }}>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>SKU</Typography>
+                                                                <TextField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={edit.sku}
+                                                                    onChange={(e) => setVEdit(v.id, { sku: e.target.value })}
+                                                                    disabled={isBusy}
+                                                                />
+                                                            </Box>
+                                                        </Box>
+
+                                                        {/* Row 2: Color */}
+                                                        <Box sx={{ minWidth: 0 }}>
+                                                            <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Color</Typography>
+                                                            {!edit.showNewColor ? (
+                                                                <FormControl size="small" fullWidth>
+                                                                    <Select
+                                                                        value={edit.selectedColorId ?? ""}
+                                                                        displayEmpty
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value as unknown;
+                                                                            if (val === "new") {
+                                                                                setVEdit(v.id, { showNewColor: true, selectedColorId: null });
+                                                                            } else {
+                                                                                setVEdit(v.id, { selectedColorId: val === "" ? null : Number(val) });
+                                                                            }
+                                                                        }}
+                                                                        sx={{ height: 40 }}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <MenuItem value="">
+                                                                            <Typography variant="body2" color="text.secondary">Ninguno</Typography>
+                                                                        </MenuItem>
+                                                                        {colors.map((c: Color) => (
+                                                                            <MenuItem key={c.id} value={c.id}>
+                                                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                                                                    <Box sx={{ width: 14, height: 14, borderRadius: "50%", bgcolor: c.hexCode, border: "1px solid", borderColor: "divider", flexShrink: 0 }} />
+                                                                                    <Typography variant="body2">{c.name}</Typography>
+                                                                                </Box>
+                                                                            </MenuItem>
+                                                                        ))}
+                                                                        <MenuItem value="new" sx={{ borderTop: 1, borderColor: "divider", color: "primary.main", fontWeight: "bold" }}>
+                                                                            + Crear nuevo...
+                                                                        </MenuItem>
+                                                                    </Select>
+                                                                </FormControl>
+                                                            ) : (
+                                                                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        placeholder="Nombre"
+                                                                        value={edit.newColorName}
+                                                                        onChange={(e) => setVEdit(v.id, { newColorName: e.target.value })}
+                                                                        sx={{ flex: 1 }}
+                                                                        disabled={isBusy}
+                                                                    />
+                                                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                        <Box
+                                                                            component="input"
+                                                                            type="color"
+                                                                            value={edit.newColorHex}
+                                                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVEdit(v.id, { newColorHex: e.target.value })}
+                                                                            sx={{ width: 28, height: 28, p: 0, border: "1px solid", borderColor: "divider", borderRadius: "50%", cursor: "pointer", bgcolor: "transparent" }}
+                                                                            disabled={isBusy}
+                                                                        />
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            color="error"
+                                                                            onClick={() => setVEdit(v.id, { showNewColor: false, newColorName: "", selectedColorId: v.colorId ?? null })}
+                                                                            disabled={isBusy}
+                                                                        >
+                                                                            <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                                                        </IconButton>
+                                                                    </Box>
+                                                                </Box>
+                                                            )}
+                                                        </Box>
+
+                                                        {/* Row 3: Talla */}
+                                                        <Box sx={{ minWidth: 0 }}>
+                                                            <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Talla</Typography>
+                                                            {!edit.showNewSize ? (
+                                                                <FormControl size="small" fullWidth>
+                                                                    <Select
+                                                                        value={edit.selectedSizeId ?? ""}
+                                                                        displayEmpty
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value as unknown;
+                                                                            if (val === "new") {
+                                                                                setVEdit(v.id, { showNewSize: true, selectedSizeId: null });
+                                                                            } else {
+                                                                                setVEdit(v.id, { selectedSizeId: val === "" ? null : Number(val) });
+                                                                            }
+                                                                        }}
+                                                                        sx={{ height: 40 }}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <MenuItem value="">
+                                                                            <Typography variant="body2" color="text.secondary">Ninguno</Typography>
+                                                                        </MenuItem>
+                                                                        {sizes.map((s: Size) => (
+                                                                            <MenuItem key={s.id} value={s.id}>
+                                                                                <Typography variant="body2">{s.name}</Typography>
+                                                                            </MenuItem>
+                                                                        ))}
+                                                                        <MenuItem value="new" sx={{ borderTop: 1, borderColor: "divider", color: "primary.main", fontWeight: "bold" }}>
+                                                                            + Crear nueva...
+                                                                        </MenuItem>
+                                                                    </Select>
+                                                                </FormControl>
+                                                            ) : (
+                                                                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        placeholder="Nombre"
+                                                                        value={edit.newSizeName}
+                                                                        onChange={(e) => setVEdit(v.id, { newSizeName: e.target.value })}
+                                                                        sx={{ flex: 1 }}
+                                                                        disabled={isBusy}
+                                                                    />
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        color="error"
+                                                                        onClick={() => setVEdit(v.id, { showNewSize: false, newSizeName: "", selectedSizeId: v.sizeId ?? null })}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                                                    </IconButton>
+                                                                </Box>
+                                                            )}
+                                                        </Box>
+
+                                                        {/* Row 4: Stock & Stock Mínimo */}
+                                                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Stock</Typography>
+                                                                <NumericField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={edit.stock}
+                                                                    onChange={(e) => setVEdit(v.id, { stock: e.target.value })}
+                                                                    onBlur={(e) => {
+                                                                        if (!e.target.value.trim()) {
+                                                                            setVEdit(v.id, { stock: "0" });
+                                                                        }
+                                                                    }}
+                                                                    allowDecimals={false}
+                                                                    slotProps={{ htmlInput: { min: 0 } }}
+                                                                    disabled={isBusy}
+                                                                />
+                                                            </Box>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Stock Mínimo</Typography>
+                                                                <NumericField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={edit.minStock}
+                                                                    onChange={(e) => setVEdit(v.id, { minStock: e.target.value })}
+                                                                    onBlur={(e) => {
+                                                                        if (!e.target.value.trim()) {
+                                                                            setVEdit(v.id, { minStock: "0" });
+                                                                        }
+                                                                    }}
+                                                                    allowDecimals={false}
+                                                                    slotProps={{ htmlInput: { min: 0 } }}
+                                                                    disabled={isBusy}
+                                                                />
+                                                            </Box>
+                                                        </Box>
+
+                                                        {/* Row 5: P. Compra & P. Venta */}
+                                                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, mb: 0.5, color: "text.secondary" }}>
+                                                                    P. Compra
+                                                                    <Tooltip title="Si se deja vacío, se utilizará el precio de compra base del producto (referencial).">
+                                                                        <InfoRoundedIcon sx={{ fontSize: "0.85rem", color: "text.secondary", cursor: "help" }} />
+                                                                    </Tooltip>
+                                                                </Typography>
+                                                                <NumericField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={edit.purchasePrice}
+                                                                    onChange={(e) => setVEdit(v.id, { purchasePrice: e.target.value })}
+                                                                    allowDecimals={true}
+                                                                    placeholder={purchasePrice || "—"}
+                                                                    disabled={isBusy}
+                                                                    slotProps={{
+                                                                        input: {
+                                                                            startAdornment: <InputAdornment position="start" sx={{ mr: 0.25 }}><Typography variant="caption" sx={{ fontSize: "0.75rem" }}>S/</Typography></InputAdornment>,
+                                                                        },
+                                                                        htmlInput: { min: 0, step: "0.01" }
+                                                                    }}
+                                                                />
+                                                            </Box>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, mb: 0.5, color: "text.secondary" }}>
+                                                                    P. Venta
+                                                                    <Tooltip title="Si se deja vacío, se utilizará el precio de venta base del producto (referencial).">
+                                                                        <InfoRoundedIcon sx={{ fontSize: "0.85rem", color: "text.secondary", cursor: "help" }} />
+                                                                    </Tooltip>
+                                                                </Typography>
+                                                                <NumericField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={edit.salePrice}
+                                                                    onChange={(e) => setVEdit(v.id, { salePrice: e.target.value })}
+                                                                    allowDecimals={true}
+                                                                    placeholder={salePrice || "—"}
+                                                                    disabled={isBusy}
+                                                                    slotProps={{
+                                                                        input: {
+                                                                            startAdornment: <InputAdornment position="start" sx={{ mr: 0.25 }}><Typography variant="caption" sx={{ fontSize: "0.75rem" }}>S/</Typography></InputAdornment>,
+                                                                        },
+                                                                        htmlInput: { min: 0, step: "0.01" }
+                                                                    }}
+                                                                />
+                                                            </Box>
+                                                        </Box>
+                                                    </Stack>
+
+                                                    {errors[`v_${v.id}_combination`] && (
+                                                        <Typography variant="caption" color="error.main" fontWeight={650} sx={{ display: "block", mt: 1.5, pl: 1 }}>
+                                                            ⚠️ {errors[`v_${v.id}_combination`]}
+                                                        </Typography>
+                                                    )}
+                                                </Paper>
+                                            );
+                                        })}
+
+                                        {/* Variant Drafts (Mobile Cards) */}
+                                        {variantDrafts.map((vd, vi) => {
+                                            const ep = `nd${vi}`;
+                                            const mainImgSrc = getDraftMainImage(vd);
+                                            const totalDraftCount = vd.imagePreviews.length;
+
+                                            return (
+                                                <Paper
+                                                    key={vd.rowId}
+                                                    variant="outlined"
+                                                    sx={{
+                                                        p: 2,
+                                                        borderRadius: 2,
+                                                        position: "relative",
+                                                        bgcolor: (t) => t.palette.mode === "dark" ? alpha(t.palette.primary.main, 0.04) : alpha(t.palette.primary.main, 0.02),
+                                                        border: "1px solid",
+                                                        borderColor: errors[`${ep}_combination`] ? "error.main" : "divider",
+                                                    }}
+                                                >
+                                                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                                                        <Typography variant="subtitle2" fontWeight={800} color="primary.main">
+                                                            Variante #{activeVariants.length + vi + 1} (Borrador)
+                                                        </Typography>
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            onClick={() => removeVariantDraftRow(vd.rowId)}
+                                                            disabled={isBusy}
+                                                            aria-label="Quitar esta fila"
+                                                        >
+                                                            <DeleteOutlineRoundedIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Box>
+
+                                                    <Stack spacing={2} sx={{ width: "100%", minWidth: 0 }}>
+                                                        {/* Row 1: Imagen and SKU side by side */}
+                                                        <Box sx={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 2, alignItems: "center" }}>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Imagen</Typography>
+                                                                <Tooltip title="Gestionar imágenes (Borrador)">
+                                                                    <Box
+                                                                        onClick={() => setActiveImageEdit({ type: "draft", rowId: vd.rowId })}
+                                                                        sx={{
+                                                                            width: 56,
+                                                                            height: 56,
+                                                                            borderRadius: 1,
+                                                                            border: "1px dashed",
+                                                                            borderColor: "primary.main",
+                                                                            display: "flex",
+                                                                            alignItems: "center",
+                                                                            justifyContent: "center",
+                                                                            position: "relative",
+                                                                            cursor: "pointer",
+                                                                            bgcolor: "action.hover",
+                                                                            overflow: "hidden",
+                                                                        }}
+                                                                    >
+                                                                        {mainImgSrc ? (
+                                                                            <Box component="img" src={mainImgSrc} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                                        ) : (
+                                                                            <PhotoCameraRoundedIcon sx={{ fontSize: 24, color: "primary.main" }} />
+                                                                        )}
+                                                                        {totalDraftCount > 0 && (
+                                                                            <Box sx={{
+                                                                                position: "absolute", bottom: -2, right: -2,
+                                                                                bgcolor: "primary.main", color: "primary.contrastText",
+                                                                                borderRadius: "50%", width: 18, height: 18,
+                                                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                                                fontSize: 10, fontWeight: "bold"
+                                                                            }}>
+                                                                                {totalDraftCount}
+                                                                            </Box>
+                                                                        )}
+                                                                    </Box>
+                                                                </Tooltip>
+                                                            </Box>
+                                                            <Box sx={{ flex: 1 }}>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>SKU</Typography>
+                                                                <TextField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={vd.sku}
+                                                                    onChange={(e) => setDraft(vd.rowId, { sku: e.target.value })}
+                                                                    disabled={isBusy}
+                                                                />
+                                                            </Box>
+                                                        </Box>
+
+                                                        {/* Row 2: Color */}
+                                                        <Box sx={{ minWidth: 0 }}>
+                                                            <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Color</Typography>
+                                                            {!vd.showNewColor ? (
+                                                                <FormControl size="small" fullWidth>
+                                                                    <Select
+                                                                        value={vd.selectedColor?.id ?? ""}
+                                                                        displayEmpty
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value as unknown;
+                                                                            if (val === "new") {
+                                                                                setDraft(vd.rowId, { showNewColor: true, selectedColor: null });
+                                                                            } else {
+                                                                                const chosen = colors.find((c) => c.id === Number(val)) || null;
+                                                                                setDraft(vd.rowId, { selectedColor: chosen });
+                                                                            }
+                                                                        }}
+                                                                        sx={{ height: 40 }}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <MenuItem value="">
+                                                                            <Typography variant="body2" color="text.secondary">Ninguno</Typography>
+                                                                        </MenuItem>
+                                                                        {colors.map((c: Color) => (
+                                                                            <MenuItem key={c.id} value={c.id}>
+                                                                                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                                                                    <Box sx={{ width: 14, height: 14, borderRadius: "50%", bgcolor: c.hexCode, border: "1px solid", borderColor: "divider", flexShrink: 0 }} />
+                                                                                    <Typography variant="body2">{c.name}</Typography>
+                                                                                </Box>
+                                                                            </MenuItem>
+                                                                        ))}
+                                                                        <MenuItem value="new" sx={{ borderTop: 1, borderColor: "divider", color: "primary.main", fontWeight: "bold" }}>
+                                                                            + Crear nuevo...
+                                                                        </MenuItem>
+                                                                    </Select>
+                                                                </FormControl>
+                                                            ) : (
+                                                                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        placeholder="Nombre"
+                                                                        value={vd.newColorName}
+                                                                        onChange={(e) => setDraft(vd.rowId, { newColorName: e.target.value })}
+                                                                        sx={{ flex: 1 }}
+                                                                        error={!!errors[`${ep}_newColorName`]}
+                                                                        disabled={isBusy}
+                                                                    />
+                                                                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                                                        <Box
+                                                                            component="input"
+                                                                            type="color"
+                                                                            value={vd.newColorHex}
+                                                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft(vd.rowId, { newColorHex: e.target.value })}
+                                                                            sx={{ width: 28, height: 28, p: 0, border: "1px solid", borderColor: "divider", borderRadius: "50%", cursor: "pointer", bgcolor: "transparent" }}
+                                                                            disabled={isBusy}
+                                                                        />
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            color="error"
+                                                                            onClick={() => setDraft(vd.rowId, { showNewColor: false, newColorName: "", selectedColor: null })}
+                                                                            disabled={isBusy}
+                                                                        >
+                                                                            <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                                                        </IconButton>
+                                                                    </Box>
+                                                                </Box>
+                                                            )}
+                                                        </Box>
+
+                                                        {/* Row 3: Talla */}
+                                                        <Box sx={{ minWidth: 0 }}>
+                                                            <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Talla</Typography>
+                                                            {!vd.showNewSize ? (
+                                                                <FormControl size="small" fullWidth>
+                                                                    <Select
+                                                                        value={vd.selectedSize?.id ?? ""}
+                                                                        displayEmpty
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value as unknown;
+                                                                            if (val === "new") {
+                                                                                setDraft(vd.rowId, { showNewSize: true, selectedSize: null });
+                                                                            } else {
+                                                                                const chosen = sizes.find((s) => s.id === Number(val)) || null;
+                                                                                setDraft(vd.rowId, { selectedSize: chosen });
+                                                                            }
+                                                                        }}
+                                                                        sx={{ height: 40 }}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <MenuItem value="">
+                                                                            <Typography variant="body2" color="text.secondary">Ninguno</Typography>
+                                                                        </MenuItem>
+                                                                        {sizes.map((s: Size) => (
+                                                                            <MenuItem key={s.id} value={s.id}>
+                                                                                <Typography variant="body2">{s.name}</Typography>
+                                                                            </MenuItem>
+                                                                        ))}
+                                                                        <MenuItem value="new" sx={{ borderTop: 1, borderColor: "divider", color: "primary.main", fontWeight: "bold" }}>
+                                                                            + Crear nueva...
+                                                                        </MenuItem>
+                                                                    </Select>
+                                                                </FormControl>
+                                                            ) : (
+                                                                <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+                                                                    <TextField
+                                                                        size="small"
+                                                                        placeholder="Nombre"
+                                                                        value={vd.newSizeName}
+                                                                        onChange={(e) => setDraft(vd.rowId, { newSizeName: e.target.value })}
+                                                                        sx={{ flex: 1 }}
+                                                                        error={!!errors[`${ep}_newSizeName`]}
+                                                                        disabled={isBusy}
+                                                                    />
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        color="error"
+                                                                        onClick={() => setDraft(vd.rowId, { showNewSize: false, newSizeName: "", selectedSize: null })}
+                                                                        disabled={isBusy}
+                                                                    >
+                                                                        <CloseRoundedIcon sx={{ fontSize: 16 }} />
+                                                                    </IconButton>
+                                                                </Box>
+                                                            )}
+                                                        </Box>
+
+                                                        {/* Row 4: Stock & Stock Mínimo */}
+                                                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Stock</Typography>
+                                                                <NumericField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={vd.stock}
+                                                                    onChange={(e) => setDraft(vd.rowId, { stock: e.target.value })}
+                                                                    onBlur={(e) => {
+                                                                        if (!e.target.value.trim()) {
+                                                                            setDraft(vd.rowId, { stock: "0" });
+                                                                            setErrors((prev) => {
+                                                                                const copy = { ...prev };
+                                                                                delete copy[`${ep}_stock`];
+                                                                                return copy;
+                                                                            });
+                                                                        }
+                                                                    }}
+                                                                    allowDecimals={false}
+                                                                    slotProps={{ htmlInput: { min: 0 } }}
+                                                                    error={!!errors[`${ep}_stock`]}
+                                                                    helperText={errors[`${ep}_stock`]}
+                                                                    disabled={isBusy}
+                                                                />
+                                                            </Box>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "block", mb: 0.5, color: "text.secondary" }}>Stock Mínimo</Typography>
+                                                                <NumericField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={vd.minStock}
+                                                                    onChange={(e) => setDraft(vd.rowId, { minStock: e.target.value })}
+                                                                    onBlur={(e) => {
+                                                                        if (!e.target.value.trim()) {
+                                                                            setDraft(vd.rowId, { minStock: "0" });
+                                                                        }
+                                                                    }}
+                                                                    allowDecimals={false}
+                                                                    slotProps={{ htmlInput: { min: 0 } }}
+                                                                    disabled={isBusy}
+                                                                />
+                                                            </Box>
+                                                        </Box>
+
+                                                        {/* Row 5: P. Compra & P. Venta */}
+                                                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, mb: 0.5, color: "text.secondary" }}>
+                                                                    P. Compra
+                                                                    <Tooltip title="Si se deja vacío, se utilizará el precio de compra base del producto (referencial).">
+                                                                        <InfoRoundedIcon sx={{ fontSize: "0.85rem", color: "text.secondary", cursor: "help" }} />
+                                                                    </Tooltip>
+                                                                </Typography>
+                                                                <NumericField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={vd.purchasePrice}
+                                                                    onChange={(e) => setDraft(vd.rowId, { purchasePrice: e.target.value })}
+                                                                    allowDecimals={true}
+                                                                    placeholder={purchasePrice || "—"}
+                                                                    disabled={isBusy}
+                                                                    slotProps={{
+                                                                        input: {
+                                                                            startAdornment: <InputAdornment position="start" sx={{ mr: 0.25 }}><Typography variant="caption" sx={{ fontSize: "0.75rem" }}>S/</Typography></InputAdornment>,
+                                                                        },
+                                                                        htmlInput: { min: 0, step: "0.01" }
+                                                                    }}
+                                                                />
+                                                            </Box>
+                                                            <Box>
+                                                                <Typography variant="caption" fontWeight={700} sx={{ display: "inline-flex", alignItems: "center", gap: 0.5, mb: 0.5, color: "text.secondary" }}>
+                                                                    P. Venta
+                                                                    <Tooltip title="Si se deja vacío, se utilizará el precio de venta base del producto (referencial).">
+                                                                        <InfoRoundedIcon sx={{ fontSize: "0.85rem", color: "text.secondary", cursor: "help" }} />
+                                                                    </Tooltip>
+                                                                </Typography>
+                                                                <NumericField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={vd.salePrice}
+                                                                    onChange={(e) => setDraft(vd.rowId, { salePrice: e.target.value })}
+                                                                    allowDecimals={true}
+                                                                    placeholder={salePrice || "—"}
+                                                                    disabled={isBusy}
+                                                                    slotProps={{
+                                                                        input: {
+                                                                            startAdornment: <InputAdornment position="start" sx={{ mr: 0.25 }}><Typography variant="caption" sx={{ fontSize: "0.75rem" }}>S/</Typography></InputAdornment>,
+                                                                        },
+                                                                        htmlInput: { min: 0, step: "0.01" }
+                                                                    }}
+                                                                />
+                                                            </Box>
+                                                        </Box>
+                                                    </Stack>
+
+
+                                                    {errors[`${ep}_combination`] && (
+                                                        <Typography variant="caption" color="error.main" fontWeight={650} sx={{ display: "block", mt: 1.5, pl: 1 }}>
+                                                            ⚠️ {errors[`${ep}_combination`]}
+                                                        </Typography>
+                                                    )}
+                                                </Paper>
+                                            );
+                                        })}
+                                    </>
+                                )}
+                            </Box>
+
+
+                            <input
+                                ref={variantImagePickerRef}
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                style={{ display: "none" }}
+                                onChange={handleVariantImageFileChange}
+                            />
+                        </>
+                    )}
+                </DialogContent>
+
+                <DialogActions
+                    sx={{
+                        px: { xs: 1.5, sm: 3 },
+                        py: 2,
+                        borderTop: 1,
+                        borderColor: "divider",
+                        gap: 1,
+                        flexShrink: 0,
+                        flexDirection: { xs: "column", sm: "row" },
+                        justifyContent: { xs: "stretch", sm: "flex-end" },
+                        "& .MuiButton-root": { width: { xs: "100%", sm: "auto" } },
+                    }}
+                >
+                    <Button variant="outlined" onClick={handleClose} disabled={isBusy}>
+                        Cancelar
+                    </Button>
+                    <Button
+                        onClick={handleSubmit}
+                        variant="contained"
+                        disabled={isBusy}
+                        startIcon={isBusy ? <CircularProgress size={16} color="inherit" /> : <SaveRoundedIcon />}
+                    >
+                        {isBusy ? "Guardando..." : "Guardar cambios"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={variantIdPendingDelete !== null}
+                onClose={() => { if (!deletingVariant) setVariantIdPendingDelete(null); }}
+                maxWidth="xs"
+                fullWidth
+            >
+                <DialogTitle>Eliminar variante</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2">
+                        La variante dejará de mostrarse en la tienda (se desactiva). Puedes crear otra variante después con «Agregar variante».
+                    </Typography>
+                    {activeVariants.length === 1 && variantIdPendingDelete != null && (
+                        <Alert severity="warning" sx={{ mt: 2 }}>
+                            Es la única variante activa de este producto.
+                        </Alert>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ px: 2, pb: 2 }}>
+                    <Button onClick={() => setVariantIdPendingDelete(null)} disabled={deletingVariant}>
+                        Cancelar
+                    </Button>
+                    <Button
+                        color="error"
+                        variant="contained"
+                        onClick={handleConfirmDeleteVariant}
+                        disabled={deletingVariant}
+                        startIcon={deletingVariant ? <CircularProgress size={18} color="inherit" /> : undefined}
+                    >
+                        {deletingVariant ? "Eliminando…" : "Eliminar"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={activeImageEdit !== null}
+                onClose={() => setActiveImageEdit(null)}
+                maxWidth="md"
+                fullWidth
+                disableRestoreFocus
+            >
+                <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Typography component="span" variant="h6" fontWeight={800} letterSpacing="0.04em" sx={{ color: "primary.main" }}>
+                        Gestionar imágenes de la variante
+                    </Typography>
+                    <IconButton onClick={() => setActiveImageEdit(null)} aria-label="Cerrar">
+                        <CloseRoundedIcon />
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent dividers sx={{ py: 3 }}>
+                    {activeImageEdit && (
+                        <Box>
+                            {activeImageEdit.type === "existing" ? (() => {
+                                const v = activeVariants.find((vv) => vv.id === activeImageEdit.id);
+                                if (!v) return <Typography>Variante no encontrada</Typography>;
+
+                                const visible = v.images.filter((img) => !pendingDeleteImageIds.includes(img.id));
+                                const toDelete = v.images.length - visible.length;
+                                const pending = pendingUploadsByVariant[v.id];
+                                const pendingPrev = pending?.previews ?? [];
+                                const serverHero = visible[0];
+                                const hasServerHero = Boolean(serverHero);
+                                const hasAnyImage = visible.length > 0 || pendingPrev.length > 0;
+                                const serverTail = visible.slice(1);
+                                const pendingThumbs = hasServerHero
+                                    ? pendingPrev.map((p, idx) => ({ p, idx }))
+                                    : pendingPrev.slice(1).map((p, idx) => ({ p, idx: idx + 1 }));
+
+                                const openVariantFilePicker = () => {
+                                    pendingPickerVariantIdRef.current = v.id;
+                                    variantImagePickerRef.current?.click();
+                                };
+
+                                return (
+                                    <Box>
+                                        <Box sx={{ mb: 3, display: "flex", alignItems: "center", gap: 1.5, p: 2, bgcolor: "action.hover", borderRadius: 1.5, border: "1px solid", borderColor: "divider" }}>
+                                            <Box sx={{ width: 16, height: 16, borderRadius: "50%", bgcolor: v.colorHexCode ?? "action.disabledBackground", border: "1px solid", borderColor: "divider" }} />
+                                            <Typography variant="subtitle1" fontWeight={700}>
+                                                {v.colorName ?? "Sin color"} / {v.sizeName ?? "Sin talla"}
+                                            </Typography>
+                                            {v.sku && (
+                                                <Chip label={`SKU: ${v.sku}`} size="small" variant="outlined" />
                                             )}
                                         </Box>
 
-                                        <Box>
-                                            <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1 }}>
-                                                Talla <Typography component="span" variant="caption" fontWeight={400}>(opcional)</Typography>
-                                            </Typography>
-                                            {sizesLoading ? (
-                                                <CircularProgress size={22} sx={{ mb: 1 }} />
-                                            ) : (
-                                                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                                                    {sizes.map((s) => (
-                                                        <Chip
-                                                            key={s.id} label={s.name}
-                                                            onClick={() => setDraft(vd.rowId, { selectedSize: s, showNewSize: false })}
-                                                            color={vd.selectedSize?.id === s.id ? "primary" : "default"}
-                                                            variant={vd.selectedSize?.id === s.id ? "filled" : "outlined"}
-                                                            size="small" sx={{ cursor: "pointer" }}
-                                                        />
-                                                    ))}
-                                                    <Chip
-                                                        icon={<AddRoundedIcon />}
-                                                        label="Nueva talla"
-                                                        onClick={() => setDraft(vd.rowId, { showNewSize: !vd.showNewSize, selectedSize: null })}
-                                                        variant="outlined"
-                                                        size="small"
-                                                        color={vd.showNewSize ? "primary" : "default"}
-                                                        sx={{ cursor: "pointer" }}
-                                                    />
-                                                </Box>
+                                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2.5, flexWrap: "wrap" }}>
+                                            <Chip label={`${visible.length} en servidor`} size="small" variant="outlined" />
+                                            {pendingPrev.length > 0 && (
+                                                <Chip label={`+${pendingPrev.length} por subir`} size="small" color="primary" variant="outlined" />
                                             )}
+                                            {toDelete > 0 && (
+                                                <Chip label={`${toDelete} se eliminará al guardar`} size="small" color="error" variant="outlined" />
+                                            )}
+                                        </Box>
+                                        <Typography variant="body2" color="text.secondary" sx={{ display: "block", mb: 3 }}>
+                                            La imagen principal lleva estrella. En el servidor puedes cambiar la imagen principal haciendo clic en la estrella vacía de otra foto. Las fotos nuevas que aún no se han subido: la primera de la lista será la principal al guardar (puedes cambiar el orden con la estrella).
+                                        </Typography>
 
-                                            {vd.showNewSize && (
-                                                <TextField
-                                                    label="Nombre de la talla" value={vd.newSizeName}
-                                                    onChange={(e) => setDraft(vd.rowId, { newSizeName: e.target.value })}
-                                                    size="small" sx={{ mt: 1.5, width: "100%", maxWidth: 280 }}
-                                                    error={!!errors[`${ep}_newSizeName`]} helperText={errors[`${ep}_newSizeName`]}
+                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2.5, alignItems: "flex-start" }}>
+                                            {!hasAnyImage ? (
+                                                <VariantPrimaryImageDropSlot
+                                                    onOpenPicker={openVariantFilePicker}
+                                                    onDropFiles={(files) => appendPendingVariantImages(v.id, files)}
+                                                    disabled={isBusy}
+                                                />
+                                            ) : hasServerHero && serverHero ? (
+                                                <VariantImageThumb
+                                                    size={VARIANT_PRIMARY_IMAGE_SIZE}
+                                                    src={imgUrl(serverHero.url)}
+                                                    alt=""
+                                                    onExpand={() => setImageLightbox({ src: imgUrl(serverHero.url), alt: "Imagen de variante" })}
+                                                    onRemove={() => markForDeletion(serverHero.id)}
+                                                    removeTooltip="Marcar para eliminar al guardar"
+                                                    isMain={serverHero.isMain}
+                                                    onSetAsMain={
+                                                        serverHero.isMain
+                                                            ? undefined
+                                                            : () => {
+                                                                void handleServerImageSetMain(serverHero.id);
+                                                            }
+                                                    }
+                                                    setAsMainDisabled={imageThumbMainBusy}
+                                                />
+                                            ) : pendingPrev[0] ? (
+                                                <VariantImageThumb
+                                                    size={VARIANT_PRIMARY_IMAGE_SIZE}
+                                                    src={pendingPrev[0].url}
+                                                    alt={pendingPrev[0].name}
+                                                    emphasized
+                                                    isMain
+                                                    onExpand={() => setImageLightbox({ src: pendingPrev[0].url, alt: pendingPrev[0].name })}
+                                                    onRemove={() => removePendingVariantImageAt(v.id, 0)}
+                                                />
+                                            ) : null}
+
+                                            {serverTail.map((img) => (
+                                                <VariantImageThumb
+                                                    key={img.id}
+                                                    src={imgUrl(img.url)}
+                                                    alt=""
+                                                    onExpand={() => setImageLightbox({ src: imgUrl(img.url), alt: "Imagen de variante" })}
+                                                    onRemove={() => markForDeletion(img.id)}
+                                                    removeTooltip="Marcar para eliminar al guardar"
+                                                    isMain={img.isMain}
+                                                    onSetAsMain={
+                                                        img.isMain
+                                                            ? undefined
+                                                            : () => {
+                                                                void handleServerImageSetMain(img.id);
+                                                            }
+                                                    }
+                                                    setAsMainDisabled={imageThumbMainBusy}
+                                                />
+                                            ))}
+
+                                            {pendingThumbs.map(({ p, idx }) => (
+                                                <VariantImageThumb
+                                                    key={`pend-${p.name}-${idx}`}
+                                                    src={p.url}
+                                                    alt={p.name}
+                                                    emphasized
+                                                    onExpand={() => setImageLightbox({ src: p.url, alt: p.name })}
+                                                    onRemove={() => removePendingVariantImageAt(v.id, idx)}
+                                                    onSetAsMain={
+                                                        idx > 0 ? () => makePendingImageMain(v.id, idx) : undefined
+                                                    }
+                                                    setAsMainDisabled={imageThumbMainBusy}
+                                                />
+                                            ))}
+
+                                            {hasAnyImage ? (
+                                                <VariantAddMoreImagesButton onOpenPicker={openVariantFilePicker} disabled={isBusy} />
+                                            ) : null}
+                                        </Box>
+                                    </Box>
+                                );
+                            })() : (() => {
+                                const vd = variantDrafts.find((draft) => draft.rowId === activeImageEdit.rowId);
+                                if (!vd) return <Typography>Borrador no encontrado</Typography>;
+
+                                const draftFileId = `draft-file-${vd.rowId}`;
+                                const draftFirst = vd.imagePreviews[0];
+                                const draftRest = vd.imagePreviews.slice(1);
+
+                                return (
+                                    <Box>
+                                        <Box sx={{ mb: 3, display: "flex", alignItems: "center", gap: 1.5, p: 2, bgcolor: "action.hover", borderRadius: 1.5, border: "1px solid", borderColor: "divider" }}>
+                                            <Box sx={{ width: 16, height: 16, borderRadius: "50%", bgcolor: (vd.selectedColor?.hexCode ?? vd.newColorName) || "action.disabledBackground", border: "1px solid", borderColor: "divider" }} />
+                                            <Typography variant="subtitle1" fontWeight={700}>
+                                                Nueva Variante: {(vd.selectedColor?.name ?? vd.newColorName) || "Sin color"} / {(vd.selectedSize?.name ?? vd.newSizeName) || "Sin talla"}
+                                            </Typography>
+                                        </Box>
+
+                                        <Typography variant="body2" color="text.secondary" sx={{ display: "block", mb: 3 }}>
+                                            La primera foto de la lista será la principal al guardar. Usa la estrella vacía en otra miniatura para colocarla primero.
+                                        </Typography>
+
+                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2.5, alignItems: "flex-start" }}>
+                                            {!draftFirst ? (
+                                                <VariantPrimaryImageDropSlot
+                                                    inputId={draftFileId}
+                                                    onDropFiles={(files) => appendDraftImages(vd.rowId, files)}
+                                                    disabled={isBusy}
+                                                />
+                                            ) : (
+                                                <VariantImageThumb
+                                                    size={VARIANT_PRIMARY_IMAGE_SIZE}
+                                                    src={draftFirst.url}
+                                                    alt={draftFirst.name}
+                                                    isMain
+                                                    onExpand={() => setImageLightbox({ src: draftFirst.url, alt: draftFirst.name })}
+                                                    onRemove={() => removeDraftImageAt(vd.rowId, 0)}
                                                 />
                                             )}
+                                            {draftRest.map((p, i) => (
+                                                <VariantImageThumb
+                                                    key={`${p.name}-${i + 1}`}
+                                                    src={p.url}
+                                                    alt={p.name}
+                                                    onExpand={() => setImageLightbox({ src: p.url, alt: p.name })}
+                                                    onRemove={() => removeDraftImageAt(vd.rowId, i + 1)}
+                                                    onSetAsMain={() => makeDraftImageMain(vd.rowId, i + 1)}
+                                                    setAsMainDisabled={isBusy}
+                                                />
+                                            ))}
+                                            {draftFirst ? (
+                                                <VariantAddMoreImagesButton inputId={draftFileId} disabled={isBusy} />
+                                            ) : null}
                                         </Box>
                                     </Box>
+                                );
+                            })()}
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2 }}>
+                    <Button onClick={() => setActiveImageEdit(null)} variant="contained" sx={{ px: 4 }}>
+                        Aceptar
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
-                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2.5, alignItems: "flex-start" }}>
-                                        <TextField
-                                            label="Stock inicial"
-                                            value={vd.stock}
-                                            onChange={(e) => setDraft(vd.rowId, { stock: e.target.value })}
-                                            onKeyDown={blockNonIntegerKeys}
-                                            size="small"
-                                            type="number"
-                                            sx={{ width: { xs: "100%", sm: 140 } }}
-                                            slotProps={{ htmlInput: { min: 0 } }}
-                                            error={!!errors[`${ep}_stock`]}
-                                            helperText={errors[`${ep}_stock`]}
-                                        />
-                                        <TextField
-                                            label="Stock mínimo (variante)"
-                                            value={vd.minStock}
-                                            onChange={(e) => setDraft(vd.rowId, { minStock: e.target.value })}
-                                            size="small"
-                                            type="number"
-                                            sx={{ width: { xs: "100%", sm: 160 } }}
-                                            slotProps={{
-                                                htmlInput: { min: 0 },
-                                                formHelperText: {
-                                                    sx: draftStockLow ? { color: "warning.main", fontWeight: 500 } : {},
-                                                },
-                                            }}
-                                            helperText={
-                                                draftStockLow
-                                                    ? "El stock actual está en o por debajo del mínimo de esta variante."
-                                                    : "Alerta por variante"
-                                            }
-                                        />
-                                        <TextField
-                                            label="SKU"
-                                            value={vd.sku}
-                                            onChange={(e) => setDraft(vd.rowId, { sku: e.target.value })}
-                                            size="small"
-                                            sx={{ flex: "1 1 200px", minWidth: 160 }}
-                                            error={!!errors[`${ep}_sku`]}
-                                            helperText={errors[`${ep}_sku`] ?? "Opcional · identificador único de esta variante"}
-                                        />
-                                    </Box>
-
-                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mt: 2, alignItems: "flex-start" }}>
-                                        <TextField
-                                            label="Precio de venta (variante)"
-                                            value={vd.salePrice}
-                                            onChange={(e) => setDraft(vd.rowId, { salePrice: e.target.value })}
-                                            onKeyDown={blockNegativeKeys}
-                                            size="small"
-                                            type="number"
-                                            sx={{ width: { xs: "100%", sm: 200 } }}
-                                            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                                            helperText={`Opcional. Vacío = usa el del producto (${salePrice || "—"})`}
-                                        />
-                                        <TextField
-                                            label="Precio de compra (variante)"
-                                            value={vd.purchasePrice}
-                                            onChange={(e) => setDraft(vd.rowId, { purchasePrice: e.target.value })}
-                                            onKeyDown={blockNegativeKeys}
-                                            size="small"
-                                            type="number"
-                                            sx={{ width: { xs: "100%", sm: 220 } }}
-                                            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                                            helperText={`Opcional. Vacío = usa el del producto (${purchasePrice || "—"})`}
-                                        />
-                                    </Box>
-
-                                    <Divider sx={{ my: 2 }} />
-                                    <Typography variant="subtitle2" fontWeight={700} color="text.secondary" sx={{ mb: 1 }}>
-                                        Imágenes <Typography component="span" variant="caption" fontWeight={400}>(opcional)</Typography>
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
-                                        La primera foto será la principal al guardar. Usa la estrella vacía en otra miniatura para ponerla primera, o «Agregar imágenes» para más.
-                                    </Typography>
-                                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "flex-start" }}>
-                                        {!draftFirst ? (
-                                            <VariantPrimaryImageDropSlot
-                                                inputId={draftFileId}
-                                                onDropFiles={(files) => appendDraftImages(vd.rowId, files)}
-                                                disabled={isBusy}
-                                            />
-                                        ) : (
-                                            <VariantImageThumb
-                                                size={VARIANT_PRIMARY_IMAGE_SIZE}
-                                                src={draftFirst.url}
-                                                alt={draftFirst.name}
-                                                isMain
-                                                onExpand={() => setImageLightbox({ src: draftFirst.url, alt: draftFirst.name })}
-                                                onRemove={() => removeDraftImageAt(vd.rowId, 0)}
-                                            />
-                                        )}
-                                        {draftRest.map((p, i) => (
-                                            <VariantImageThumb
-                                                key={`${p.name}-${i + 1}`}
-                                                src={p.url}
-                                                alt={p.name}
-                                                onExpand={() => setImageLightbox({ src: p.url, alt: p.name })}
-                                                onRemove={() => removeDraftImageAt(vd.rowId, i + 1)}
-                                                onSetAsMain={() => makeDraftImageMain(vd.rowId, i + 1)}
-                                                setAsMainDisabled={isBusy}
-                                            />
-                                        ))}
-                                        {draftFirst ? (
-                                            <VariantAddMoreImagesButton inputId={draftFileId} disabled={isBusy} />
-                                        ) : null}
-                                    </Box>
-                                    <input
-                                        id={draftFileId}
-                                        type="file"
-                                        accept="image/*"
-                                        multiple
-                                        hidden
-                                        onChange={handleDraftImageFileChange}
-                                    />
-                                </Box>
-                            );
-                        })}
-                    </>
-                )}
-            </DialogContent>
-
-            <DialogActions
-                sx={{
-                    px: { xs: 1.5, sm: 3 },
-                    py: 2,
-                    borderTop: 1,
-                    borderColor: "divider",
-                    gap: 1,
-                    flexShrink: 0,
-                    flexDirection: { xs: "column", sm: "row" },
-                    justifyContent: { xs: "stretch", sm: "flex-end" },
-                    "& .MuiButton-root": { width: { xs: "100%", sm: "auto" } },
-                }}
-            >
-                <Button variant="outlined" onClick={handleClose} disabled={isBusy}>
-                    Cancelar
-                </Button>
-                <Button
-                    onClick={handleSubmit}
-                    variant="contained"
-                    loading={submitting}
-                    disabled={isBusy}
-                    startIcon={<SaveRoundedIcon />}
-                >
-                    Guardar cambios
-                </Button>
-            </DialogActions>
-        </Dialog>
-
-        <Dialog
-            open={variantIdPendingDelete !== null}
-            onClose={() => { if (!deletingVariant) setVariantIdPendingDelete(null); }}
-            maxWidth="xs"
-            fullWidth
-        >
-            <DialogTitle>Eliminar variante</DialogTitle>
-            <DialogContent>
-                <Typography variant="body2">
-                    La variante dejará de mostrarse en la tienda (se desactiva). Puedes crear otra variante después con «Agregar variante».
-                </Typography>
-                {activeVariants.length === 1 && variantIdPendingDelete != null && (
-                    <Alert severity="warning" sx={{ mt: 2 }}>
-                        Es la única variante activa de este producto.
-                    </Alert>
-                )}
-            </DialogContent>
-            <DialogActions sx={{ px: 2, pb: 2 }}>
-                <Button onClick={() => setVariantIdPendingDelete(null)} disabled={deletingVariant}>
-                    Cancelar
-                </Button>
-                <Button
-                    color="error"
-                    variant="contained"
-                    onClick={handleConfirmDeleteVariant}
-                    disabled={deletingVariant}
-                    startIcon={deletingVariant ? <CircularProgress size={18} color="inherit" /> : undefined}
-                >
-                    {deletingVariant ? "Eliminando…" : "Eliminar"}
-                </Button>
-            </DialogActions>
-        </Dialog>
-
-        <ImageLightbox
-            open={imageLightbox !== null}
-            src={imageLightbox?.src ?? ""}
-            alt={imageLightbox?.alt ?? ""}
-            onClose={() => setImageLightbox(null)}
-        />
+            <ImageLightbox
+                open={imageLightbox !== null}
+                src={imageLightbox?.src ?? ""}
+                alt={imageLightbox?.alt ?? ""}
+                onClose={() => setImageLightbox(null)}
+            />
         </>
     );
 }

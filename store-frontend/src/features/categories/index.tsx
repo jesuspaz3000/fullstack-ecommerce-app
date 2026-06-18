@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
     Alert,
     Box,
@@ -185,6 +186,7 @@ function CategoryMobileCard({
 }
 
 export default function Categories() {
+    const router = useRouter();
     const [page, setPage]               = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [searchInput, setSearchInput] = useState("");
@@ -226,7 +228,7 @@ export default function Categories() {
 
     const handleEdit   = (category: Category) => { setSelectedCategory(category); setEditOpen(true); };
     const handleDelete = (category: Category) => { setSelectedCategory(category); setDeleteOpen(true); };
-    const handleView   = (category: Category) => { setViewCategoryId(category.id); setViewOpen(true); };
+    const handleView   = (category: Category) => { router.push(`/categories/${category.id}`); };
 
     const columns: TableColumn<Category>[] = [
         {

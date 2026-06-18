@@ -16,6 +16,10 @@ const roboto = Roboto({
 export const metadata: Metadata = {
   title: "Panel de administración",
   description: "Sistema de gestión de tienda, inventario y punto de venta",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default async function RootLayout({

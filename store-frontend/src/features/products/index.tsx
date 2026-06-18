@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { alpha, useTheme, type Theme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import Grid from "@mui/material/Grid";
@@ -35,7 +35,6 @@ import { useProducts } from "./hooks/productsHooks";
 import { Product }      from "./types/productsTypes";
 import CreateProduct    from "./components/CreateProduct";
 import EditProduct      from "./components/EditProduct";
-import ViewProduct      from "./components/ViewProduct";
 import DeleteProduct    from "./components/DeleteProduct";
 
 interface SnackbarState {
@@ -81,6 +80,8 @@ function ProductMobileCard({
     const accent = theme.palette.primary.main;
     const stock = totalStockAcrossVariants(product);
     const variants = activeVariantCount(product);
+    const stockColor = stock === 0 ? "error" : stock <= product.minStock ? "warning" : "success";
+    const stockLabel = stock === 0 ? "SIN STOCK" : stock <= product.minStock ? `STOCK BAJO: ${stock}` : `DISPONIBLE: ${stock}`;
 
     const metricChipSx = {
         height: 26,
@@ -186,19 +187,42 @@ function ProductMobileCard({
                 }}
             >
                 <Chip
-                    label={`VENTA: ${formatCurrency(product.salePrice)}`}
+                    label={stockLabel}
                     size="small"
-                    variant="filled"
-                    sx={{ ...metricChipSx, maxWidth: "100%" }}
+                    color={stockColor}
+                    sx={{
+                        height: 26,
+                        borderRadius: 2,
+                        fontWeight: 700,
+                        fontSize: "0.65rem",
+                        letterSpacing: 0.3,
+                        boxShadow: "none",
+                        "& .MuiChip-label": { px: 1.25, py: 0 },
+                    }}
                 />
-                <Chip label={`VARIANTES: ${variants}`} size="small" variant="filled" sx={metricChipSx} />
-                <Chip label={`DISPONIBLE: ${stock}`} size="small" variant="filled" sx={metricChipSx} />
+                <Chip
+                    label={`VARIANTES: ${variants}`}
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                        height: 26,
+                        borderRadius: 2,
+                        fontWeight: 700,
+                        fontSize: "0.65rem",
+                        letterSpacing: 0.3,
+                        boxShadow: "none",
+                        borderColor: "divider",
+                        color: "text.secondary",
+                        "& .MuiChip-label": { px: 1.25, py: 0 },
+                    }}
+                />
             </Box>
         </Paper>
     );
 }
 
 export default function Products() {
+    const router = useRouter();
     const searchParams = useSearchParams();
     const initialSearch = searchParams.get("search") ?? "";
 
@@ -254,9 +278,7 @@ export default function Products() {
         setEditOpen(true);
     };
     const handleView = (product: Product) => {
-        blurActiveElement();
-        setSelectedProduct(product);
-        setViewOpen(true);
+        router.push(`/products/${product.id}`);
     };
     const handleDelete = (product: Product) => {
         blurActiveElement();
@@ -269,36 +291,52 @@ export default function Products() {
             key: "index", label: "#", width: 55,
             render: (_, i) => page * rowsPerPage + i + 1,
         },
-        { key: "name",         label: "Nombre",    width: 200 },
-        { key: "categoryName", label: "Categoría", width: 150 },
+        { key: "name",         label: "Nombre",    width: 220 },
+        { key: "categoryName", label: "Categoría", width: 140 },
         {
-            key: "salePrice",
-            label: "Precio venta",
-            width: 120,
-            align: "right",
-            render: (row) => (
-                <Typography variant="body2" fontWeight={500}>
-                    {formatCurrency(row.salePrice)}
-                </Typography>
-            ),
-        },
-        {
-            key: "variants",
+            key: "variantsCount",
             label: "Variantes",
-            width: 90,
+            width: 100,
             align: "center",
-            render: (row) => <Chip label={row.variants.filter((v) => v.isActive).length} size="small" variant="outlined" />,
+            render: (row) => (
+                <Chip
+                    label={activeVariantCount(row)}
+                    size="small"
+                    variant="outlined"
+                    sx={{ borderColor: "divider", color: "text.secondary", fontWeight: 700 }}
+                />
+            ),
         },
         {
             key: "totalStock",
             label: "Disponible",
-            width: 100,
+            width: 120,
             align: "right",
-            render: (row) => (
-                <Typography variant="body2" fontWeight={500}>
-                    {totalStockAcrossVariants(row)}
-                </Typography>
-            ),
+            render: (row) => {
+                const stock = totalStockAcrossVariants(row);
+                let stockColor: "success" | "warning" | "error" = "success";
+                let stockLabel = `${stock}`;
+                
+                if (stock === 0) {
+                    stockColor = "error";
+                    stockLabel = "Sin stock";
+                } else if (stock <= row.minStock) {
+                    stockColor = "warning";
+                    stockLabel = `${stock} bajo`;
+                } else {
+                    stockColor = "success";
+                    stockLabel = `${stock}`;
+                }
+
+                return (
+                    <Chip
+                        label={stockLabel}
+                        size="small"
+                        color={stockColor}
+                        sx={{ fontWeight: 750 }}
+                    />
+                );
+            },
         },
         {
             key: "actions",
@@ -498,11 +536,7 @@ export default function Products() {
                 onSuccess={() => { refetch(); showSnackbar("Producto actualizado exitosamente."); }}
             />
 
-            <ViewProduct
-                open={viewOpen}
-                productId={selectedProduct?.id ?? null}
-                onClose={() => setViewOpen(false)}
-            />
+            {/* ViewProduct dialog has been replaced by dynamic route /products/[id] */}
 
             <DeleteProduct
                 open={deleteOpen}

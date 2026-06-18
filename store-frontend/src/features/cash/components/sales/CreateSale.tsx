@@ -47,6 +47,7 @@ import {
     adminFormDialogTitleRowSx,
 } from "@/shared/mui/adminFormDialog";
 import useMediaQuery from "@mui/material/useMediaQuery";
+import { NumericField } from "@/shared/components/NumericField";
 
 interface Props {
     open: boolean;
@@ -103,6 +104,14 @@ function parseQty(input: string): number {
     return Number.isFinite(n) ? n : 0;
 }
 
+interface VariantOption {
+    id: string;
+    product: Product;
+    variant: ProductsVariant;
+    variantIndex: number;
+    label: string;
+}
+
 interface LineDraft {
     lineId: string;
     product: Product | null;
@@ -155,6 +164,30 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
     const [products, setProducts] = useState<Product[]>([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
+
+    const variantOptions = useMemo(() => {
+        const list: VariantOption[] = [];
+        products.forEach((p) => {
+            const vars = activeVariants(p);
+            vars.forEach((v, index) => {
+                const parts = [];
+                if (v.colorName) parts.push(v.colorName);
+                if (v.sizeName) parts.push(v.sizeName);
+                const variantStr = parts.join(" / ");
+                const label = variantStr
+                    ? `${p.name} - ${variantStr}${v.sku ? ` (SKU: ${v.sku})` : ""}`
+                    : `${p.name}${v.sku ? ` (SKU: ${v.sku})` : ""}`;
+                list.push({
+                    id: `${p.id}-${v.id}-${index}`,
+                    product: p,
+                    variant: v,
+                    variantIndex: index,
+                    label,
+                });
+            });
+        });
+        return list;
+    }, [products]);
 
     const [lines, setLines] = useState<LineDraft[]>(() => [
         { lineId: newLineId(), product: null, variantIndex: 0, quantity: "", unitPrice: "" },
@@ -803,25 +836,43 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                                 >
                                     <Stack spacing={2} sx={{ minWidth: 0, order: { xs: 2, md: 1 } }}>
                                         <Autocomplete
-                                            options={products}
-                                            value={line.product}
-                                            onChange={(_, p) => {
-                                                const firstVariant = p ? (activeVariants(p)[0] ?? null) : null;
+                                            options={variantOptions}
+                                            value={(() => {
+                                                if (!line.product) return null;
+                                                const vars = activeVariants(line.product);
+                                                const vi = clampVariantIndex(vars.length, line.variantIndex);
+                                                const activeV = vars[vi];
+                                                if (!activeV) return null;
+                                                return variantOptions.find((o) => o.product.id === line.product?.id && o.variant.id === activeV.id) ?? null;
+                                            })()}
+                                            onChange={(_, opt) => {
+                                                if (!opt) {
+                                                    setLine(line.lineId, {
+                                                        product: null,
+                                                        variantIndex: 0,
+                                                        unitPrice: "",
+                                                    });
+                                                    return;
+                                                }
                                                 setLine(line.lineId, {
-                                                    product: p,
-                                                    variantIndex: 0,
-                                                    unitPrice: p ? String(round2(effectiveVariantSalePrice(p, firstVariant))) : "",
+                                                    product: opt.product,
+                                                    variantIndex: opt.variantIndex,
+                                                    unitPrice: String(round2(effectiveVariantSalePrice(opt.product, opt.variant))),
                                                 });
                                             }}
-                                            getOptionLabel={(p) => p.name}
+                                            getOptionLabel={(opt) => opt.label}
+                                            filterOptions={(options, state) => {
+                                                const query = state.inputValue.trim().toLowerCase();
+                                                return options.filter((o) => o.label.toLowerCase().includes(query));
+                                            }}
                                             loading={loadingProducts}
                                             disabled={submitting}
                                             fullWidth
                                             renderInput={(params) => (
                                                 <TextField
                                                     {...params}
-                                                    label="Buscar producto"
-                                                    placeholder="Escribe para filtrar…"
+                                                    label="Buscar variante o SKU"
+                                                    placeholder="Escribe producto, talla, color o SKU…"
                                                     size="small"
                                                     error={!!errors[`${errKey}_product`]}
                                                     helperText={errors[`${errKey}_product`]}
@@ -856,11 +907,11 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
 
                                                 <Stack spacing={2} sx={{ width: "100%" }}>
                                                     <Box sx={{ width: "100%" }}>
-                                                        <TextField
+                                                        <NumericField
                                                             label="Cantidad"
                                                             size="small"
-                                                            type="number"
                                                             fullWidth
+                                                            allowDecimals={false}
                                                             value={line.quantity}
                                                             onChange={(e) => {
                                                                 const raw = e.target.value;
@@ -924,11 +975,11 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
                                                         })()}
                                                     </Box>
 
-                                                    <TextField
+                                                    <NumericField
                                                         label="Precio unitario"
                                                         size="small"
-                                                        type="number"
                                                         fullWidth
+                                                        allowDecimals={true}
                                                         value={line.unitPrice}
                                                         onChange={(e) => {
                                                             const raw = e.target.value;
@@ -1148,10 +1199,10 @@ export default function CreateSale({ open, onClose, onSuccess }: Props) {
 
                                         {paymentLines.length > 1 && (
                                             <>
-                                                <TextField
+                                                <NumericField
                                                     label="Monto"
                                                     size="small"
-                                                    type="number"
+                                                    allowDecimals={true}
                                                     value={pl.amount}
                                                     onChange={(e) => handlePaymentAmountChange(pl.id, e.target.value)}
                                                     fullWidth

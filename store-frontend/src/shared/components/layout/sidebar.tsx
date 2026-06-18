@@ -134,6 +134,7 @@ export default function Sidebar({ collapsed = false, onMobileClose }: SidebarPro
                                 fill
                                 style={{ objectFit: "contain" }}
                                 unoptimized
+                                priority
                             />
                         </Box>
                     </Tooltip>

@@ -38,21 +38,48 @@ export function useCategories({ limit, offset, search }: Params = {}) {
 // ─── useGetCategoryById ────────────────────────────────────────────────────────
 
 export function useGetCategoryById(id: number | null | undefined, enabled: boolean) {
+    const [prevId, setPrevId] = useState<number | null | undefined>(id);
+    const [prevEnabled, setPrevEnabled] = useState<boolean>(enabled);
     const [data, setData]       = useState<Category | null>(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(enabled && !!id);
     const [error, setError]     = useState<string | null>(null);
+    const [trigger, setTrigger] = useState(0);
+
+    const refetch = useCallback(() => {
+        setTrigger((t) => t + 1);
+    }, []);
+
+    if (id !== prevId || enabled !== prevEnabled) {
+        setPrevId(id);
+        setPrevEnabled(enabled);
+        setLoading(enabled && !!id);
+        if (!enabled || !id) {
+            setData(null);
+            setError(null);
+        }
+    }
 
     useEffect(() => {
-        if (!enabled || !id) { setData(null); setError(null); return; }
+        if (!enabled || !id) return;
+        let active = true;
         setLoading(true);
         setError(null);
         CategoryService.getCategoryById(id)
-            .then(setData)
-            .catch(() => setError("Error al cargar la categoría."))
-            .finally(() => setLoading(false));
-    }, [id, enabled]);
+            .then((res) => {
+                if (active) setData(res);
+            })
+            .catch(() => {
+                if (active) setError("Error al cargar la categoría.");
+            })
+            .finally(() => {
+                if (active) setLoading(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, [id, enabled, trigger]);
 
-    return { data, loading, error };
+    return { data, loading, error, refetch };
 }
 
 // ─── useCreateCategory ─────────────────────────────────────────────────────────

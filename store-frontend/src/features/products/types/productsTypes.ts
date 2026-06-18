@@ -48,3 +48,16 @@ export interface Params {
     offset?: number;
     search?: string;
 }
+
+export interface StockMovement {
+    id: number;
+    productVariantId: number;
+    variantLabel: string;
+    quantity: number;
+    type: "INPUT" | "OUTPUT";
+    reason: string;
+    userName: string;
+    unitCost?: number;
+    total?: number;
+    createdAt: string;
+}

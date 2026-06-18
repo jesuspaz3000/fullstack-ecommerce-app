@@ -20,6 +20,9 @@ export interface OrderItem {
     imageUrl?: string | null;
     quantity: number;
     unitPrice: number;
+    purchasePrice?: number;
+    /** true si el costo no es el congelado al vender (histórico/backfill). */
+    profitEstimated?: boolean;
     totalPrice: number;
     createdAt: string;
     updatedAt: string;

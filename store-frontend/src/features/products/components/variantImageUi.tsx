@@ -66,19 +66,21 @@ export function ImageLightbox({
                     bgcolor: (t) => alpha(t.palette.common.black, t.palette.mode === "dark" ? 0.35 : 0.06),
                 }}
             >
-                <Box
-                    component="img"
-                    src={src}
-                    alt={alt}
-                    sx={{
-                        maxWidth: "100%",
-                        maxHeight: "min(82vh, 880px)",
-                        width: "auto",
-                        height: "auto",
-                        objectFit: "contain",
-                        borderRadius: 1,
-                    }}
-                />
+                {src ? (
+                    <Box
+                        component="img"
+                        src={src}
+                        alt={alt}
+                        sx={{
+                            maxWidth: "100%",
+                            maxHeight: "min(82vh, 880px)",
+                            width: "auto",
+                            height: "auto",
+                            objectFit: "contain",
+                            borderRadius: 1,
+                        }}
+                    />
+                ) : null}
             </DialogContent>
         </Dialog>
     );

@@ -1,5 +1,5 @@
 import { ApiService } from "@/shared/services/api.service";
-import { Product, PaginatedResponse, Params, CreateProduct, UpdateProduct } from "../types/productsTypes";
+import { Product, PaginatedResponse, Params, CreateProduct, UpdateProduct, StockMovement } from "../types/productsTypes";
 
 export const ProductService = {
     getProducts: async (params: Params): Promise<PaginatedResponse<Product>> => {
@@ -24,5 +24,9 @@ export const ProductService = {
     },
     deleteProduct: async (id: number): Promise<void> => {
         await ApiService.delete(`/products/${id}`);
+    },
+    getStockMovements: async (id: number): Promise<StockMovement[]> => {
+        const response = await ApiService.get<StockMovement[]>(`/products/${id}/stock-movements`);
+        return response.data;
     },
 }

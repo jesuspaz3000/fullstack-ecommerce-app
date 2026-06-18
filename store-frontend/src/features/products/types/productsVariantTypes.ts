@@ -43,8 +43,8 @@ export interface CreateProductsVariant {
 }
 
 export interface UpdateProductsVariant {
-    colorId?: number;
-    sizeId?: number;
+    colorId?: number | null;
+    sizeId?: number | null;
     stock: number;
     minStock?: number;
     /** Opcional. Si se omite se mantiene el SKU actual. */

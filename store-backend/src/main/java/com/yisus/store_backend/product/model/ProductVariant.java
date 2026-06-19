@@ -39,9 +39,9 @@ public class ProductVariant {
     private Integer stock = 0;
 
     /** Stock mínimo de alerta para esta variante. */
-    @Column(name = "min_stock", nullable = false, columnDefinition = "INTEGER DEFAULT 5")
+    @Column(name = "min_stock", nullable = false, columnDefinition = "INTEGER DEFAULT 0")
     @Builder.Default
-    private Integer minStock = 5;
+    private Integer minStock = 0;
 
     @Column(unique = true)
     private String sku;

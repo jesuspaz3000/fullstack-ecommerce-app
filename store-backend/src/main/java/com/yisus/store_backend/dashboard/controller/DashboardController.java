@@ -5,6 +5,7 @@ import com.yisus.store_backend.dashboard.dto.LowStockAlertDTO;
 import com.yisus.store_backend.dashboard.dto.RegisterSalesDTO;
 import com.yisus.store_backend.dashboard.dto.SellerSalesDTO;
 import com.yisus.store_backend.dashboard.service.DashboardService;
+import com.yisus.store_backend.product.dto.StockMovementDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -52,5 +53,12 @@ public class DashboardController {
     @Operation(summary = "Variantes con stock igual o menor a 5 unidades")
     public ResponseEntity<List<LowStockAlertDTO>> getLowStock() {
         return ResponseEntity.ok(dashboardService.getLowStockAlerts());
+    }
+
+    @GetMapping("/stock-inputs")
+    @PreAuthorize("hasAuthority('dashboard.read')")
+    @Operation(summary = "Todos los ingresos de productos al almacén")
+    public ResponseEntity<List<StockMovementDTO>> getStockInputs() {
+        return ResponseEntity.ok(dashboardService.getStockInputs());
     }
 }

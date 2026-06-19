@@ -23,6 +23,9 @@ public class OrderItemDTO {
     private String imageUrl;
     private Integer quantity;
     private BigDecimal unitPrice;
+    private BigDecimal purchasePrice;
+    /** true si la ganancia usa costo estimado (catálogo actual o backfill), no el de la venta. */
+    private Boolean profitEstimated;
     private BigDecimal totalPrice;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

@@ -15,6 +15,8 @@ import com.yisus.store_backend.product.repository.ProductRepository;
 import com.yisus.store_backend.product.repository.ProductVariantRepository;
 import com.yisus.store_backend.product.repository.SizeRepository;
 import com.yisus.store_backend.product.service.ProductVariantService;
+import com.yisus.store_backend.product.service.StockMovementService;
+import com.yisus.store_backend.product.model.StockMovement.MovementType;
 import org.springframework.web.multipart.MultipartFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,6 +41,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     private final ColorRepository colorRepository;
     private final SizeRepository sizeRepository;
     private final ProductImageRepository productImageRepository;
+    private final StockMovementService stockMovementService;
     
     @Override
     @Transactional
@@ -76,7 +79,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 .color(color)
                 .size(size)
                 .stock(dto.getStock() != null ? dto.getStock() : 0)
-                .minStock(dto.getMinStock() != null ? dto.getMinStock() : 5)
+                .minStock(dto.getMinStock() != null ? dto.getMinStock() : 0)
                 .sku(dto.getSku())
                 .salePrice(dto.getSalePrice())
                 .purchasePrice(dto.getPurchasePrice())
@@ -84,6 +87,9 @@ public class ProductVariantServiceImpl implements ProductVariantService {
 
         ProductVariant savedVariant = productVariantRepository.save(variant);
         productVariantRepository.flush();
+        if (savedVariant.getStock() > 0) {
+            stockMovementService.registerMovement(savedVariant, savedVariant.getStock(), MovementType.INPUT, "MANUAL_ADD");
+        }
         return convertToDTO(savedVariant);
     }
 
@@ -92,17 +98,33 @@ public class ProductVariantServiceImpl implements ProductVariantService {
     public ProductVariantDTO updateProductVariant(Long id, ProductVariantUpdateDTO dto) {
         ProductVariant variant = productVariantRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product variant not found"));
+
+        // Validar combinación única en variantes del mismo producto
+        Optional<ProductVariant> duplicateOpt = productVariantRepository
+                .findActiveByProductIdAndOptionalColorIdAndOptionalSizeId(
+                        variant.getProduct().getId(), dto.getColorId(), dto.getSizeId());
+
+        if (duplicateOpt.isPresent() && !duplicateOpt.get().getId().equals(id)) {
+            throw new DuplicateResourceException("Ya existe una variante activa con esa combinación de color y talla");
+        }
         
         if (dto.getStock() != null) {
             if (dto.getStock() < 0) {
                 throw new RuntimeException("Stock cannot be negative");
             }
-            variant.setStock(dto.getStock());
+            int oldStock = variant.getStock();
+            int newStock = dto.getStock();
+            if (newStock != oldStock) {
+                variant.setStock(newStock);
+                int diff = newStock - oldStock;
+                MovementType type = diff > 0 ? MovementType.INPUT : MovementType.OUTPUT;
+                stockMovementService.registerMovement(variant, Math.abs(diff), type, "STOCK_UPDATE");
+            }
         }
 
         if (dto.getMinStock() != null) {
-            if (dto.getMinStock() < 1) {
-                throw new RuntimeException("El stock mínimo debe ser al menos 1");
+            if (dto.getMinStock() < 0) {
+                throw new RuntimeException("El stock mínimo no puede ser negativo");
             }
             variant.setMinStock(dto.getMinStock());
         }
@@ -113,6 +135,24 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 throw new RuntimeException("SKU already exists");
             }
             variant.setSku(dto.getSku());
+        }
+
+        // Actualizar color
+        if (dto.getColorId() != null) {
+            Color color = colorRepository.findById(dto.getColorId())
+                    .orElseThrow(() -> new RuntimeException("Color not found"));
+            variant.setColor(color);
+        } else {
+            variant.setColor(null);
+        }
+
+        // Actualizar talla
+        if (dto.getSizeId() != null) {
+            Size size = sizeRepository.findById(dto.getSizeId())
+                    .orElseThrow(() -> new RuntimeException("Size not found"));
+            variant.setSize(size);
+        } else {
+            variant.setSize(null);
         }
 
         // Para salePrice/purchasePrice se escribe siempre lo que venga en el DTO,
@@ -171,7 +211,13 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         ProductVariant variant = productVariantRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product variant not found"));
         
-        variant.setStock(newStock);
+        int oldStock = variant.getStock();
+        if (newStock != oldStock) {
+            variant.setStock(newStock);
+            int diff = newStock - oldStock;
+            MovementType type = diff > 0 ? MovementType.INPUT : MovementType.OUTPUT;
+            stockMovementService.registerMovement(variant, Math.abs(diff), type, "STOCK_UPDATE");
+        }
         ProductVariant savedVariant = productVariantRepository.save(variant);
         productVariantRepository.flush();
         return convertToDTO(savedVariant);
@@ -188,6 +234,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
                 .orElseThrow(() -> new RuntimeException("Product variant not found"));
         
         variant.setStock(variant.getStock() + quantity);
+        stockMovementService.registerMovement(variant, quantity, MovementType.INPUT, "MANUAL_ADD");
         ProductVariant savedVariant = productVariantRepository.save(variant);
         productVariantRepository.flush();
         return convertToDTO(savedVariant);
@@ -208,6 +255,7 @@ public class ProductVariantServiceImpl implements ProductVariantService {
         }
         
         variant.setStock(variant.getStock() - quantity);
+        stockMovementService.registerMovement(variant, quantity, MovementType.OUTPUT, "MANUAL_SUBTRACT");
         ProductVariant savedVariant = productVariantRepository.save(variant);
         productVariantRepository.flush();
         return convertToDTO(savedVariant);

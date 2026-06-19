@@ -50,7 +50,7 @@ public class Product {
     private Category category;
 
     @Column(name = "min_stock")
-    private Integer minStock = 5;
+    private Integer minStock = 0;
 
     @Column(name = "is_active")
     private Boolean isActive = true;

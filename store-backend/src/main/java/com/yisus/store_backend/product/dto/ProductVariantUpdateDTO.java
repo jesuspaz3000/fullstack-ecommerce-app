@@ -15,10 +15,13 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProductVariantUpdateDTO {
+    private Long colorId;
+    private Long sizeId;
+
     @Min(value = 0, message = "Stock cannot be negative")
     private Integer stock;
 
-    @Min(value = 1, message = "El stock mínimo debe ser al menos 1")
+    @Min(value = 0, message = "El stock mínimo no puede ser negativo")
     private Integer minStock;
 
     private String sku;

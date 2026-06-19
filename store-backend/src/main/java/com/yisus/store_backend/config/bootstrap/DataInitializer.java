@@ -38,8 +38,13 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void initSuperAdminUser() {
-        String email = System.getenv().getOrDefault("SUPERADMIN_EMAIL", "admin@store.com");
-        String password = System.getenv().getOrDefault("SUPERADMIN_PASSWORD", "admin123");
+        String email = System.getenv("SUPERADMIN_EMAIL");
+        String password = System.getenv("SUPERADMIN_PASSWORD");
+
+        if (email == null || password == null) {
+            log.warn("SUPERADMIN_EMAIL o SUPERADMIN_PASSWORD no están definidas en las variables de entorno, omitiendo creación del superadmin");
+            return;
+        }
 
         if (!userRepository.existsByEmail(email)) {
             Role superAdminRole = roleRepository.findByName("SUPERADMIN")

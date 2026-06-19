@@ -8,6 +8,8 @@ import com.yisus.store_backend.category.dto.CategoryUpdateStatusDTO;
 import com.yisus.store_backend.category.service.CategoryService;
 import com.yisus.store_backend.common.dto.MessageResponse;
 import com.yisus.store_backend.common.dto.PaginatedResponse;
+import com.yisus.store_backend.product.dto.ProductDTO;
+import com.yisus.store_backend.product.service.ProductService;
 import com.yisus.store_backend.common.util.PaginationValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -37,6 +39,7 @@ import java.util.List;
 @SecurityRequirement(name = "Bearer Authentication")
 public class CategoryController {
     private final CategoryService categoryService;
+    private final ProductService productService;
 
     @GetMapping
     @PreAuthorize("hasAuthority('categories.read')")
@@ -110,5 +113,13 @@ public class CategoryController {
     public ResponseEntity<MessageResponse> updateStatus(@PathVariable Long id, @Valid @RequestBody CategoryUpdateStatusDTO request) {
         categoryService.updateStatus(id, request.getIsActive());
         return ResponseEntity.ok(new MessageResponse("Status updated successfully"));
+    }
+
+    @GetMapping("/{id}/products")
+    @PreAuthorize("hasAuthority('categories.read')")
+    @Operation(summary = "Get all active products for a category")
+    public ResponseEntity<List<ProductDTO>> getCategoryProducts(@PathVariable Long id) {
+        List<ProductDTO> products = productService.getProductsByCategoryId(id);
+        return ResponseEntity.ok(products);
     }
 }

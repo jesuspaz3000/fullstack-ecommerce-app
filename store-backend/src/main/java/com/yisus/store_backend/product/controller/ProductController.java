@@ -8,7 +8,9 @@ import com.yisus.store_backend.product.dto.ProductDTO;
 import com.yisus.store_backend.product.dto.ProductPaginatedResponse;
 import com.yisus.store_backend.product.dto.ProductUpdateDTO;
 import com.yisus.store_backend.product.dto.ProductUpdateStatusDTO;
+import com.yisus.store_backend.product.dto.StockMovementDTO;
 import com.yisus.store_backend.product.service.ProductService;
+import com.yisus.store_backend.product.service.StockMovementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -37,6 +39,7 @@ import org.springframework.web.bind.WebDataBinder;
 @SecurityRequirement(name = "Bearer Authentication")
 public class ProductController {
     private final ProductService productService;
+    private final StockMovementService stockMovementService;
 
     // Spring Framework 7 requiere allowlist explícita para @ModelAttribute en form-data
     @InitBinder("productCreateDTO")
@@ -130,5 +133,19 @@ public class ProductController {
     public ResponseEntity<MessageResponse> updateProductStatus(@PathVariable Long id, @Valid @RequestBody ProductUpdateStatusDTO request) {
         productService.updateProductStatus(id, request.getIsActive());
         return ResponseEntity.ok(new MessageResponse("Product status updated successfully"));
+    }
+
+    @GetMapping("/{id}/stock-movements")
+    @PreAuthorize("hasAuthority('products.read')")
+    @Operation(summary = "Get stock movements by product ID", description = "Retrieve stock inputs and outputs history for a specific product")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Stock movements retrieved successfully",
+                    content = @Content(schema = @Schema(implementation = StockMovementDTO.class))),
+            @ApiResponse(responseCode = "404", description = "Product not found", content = @Content)
+    })
+    public ResponseEntity<List<StockMovementDTO>> getStockMovementsByProductId(@PathVariable Long id) {
+        productService.getProductById(id); // throws exception if not found
+        List<StockMovementDTO> movements = stockMovementService.getMovementsByProductId(id);
+        return ResponseEntity.ok(movements);
     }
 }

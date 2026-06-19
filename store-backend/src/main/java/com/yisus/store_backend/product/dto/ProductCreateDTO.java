@@ -44,5 +44,5 @@ public class ProductCreateDTO {
     private Long categoryId;
 
     @Min(value = 0, message = "Minimum stock cannot be negative")
-    private Integer minStock = 5;
+    private Integer minStock = 0;
 }

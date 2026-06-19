@@ -9,6 +9,9 @@ import com.yisus.store_backend.dashboard.service.DashboardService;
 import com.yisus.store_backend.order.repository.OrderRepository;
 import com.yisus.store_backend.product.model.ProductVariant;
 import com.yisus.store_backend.product.repository.ProductVariantRepository;
+import com.yisus.store_backend.product.repository.StockMovementRepository;
+import com.yisus.store_backend.product.dto.StockMovementDTO;
+import com.yisus.store_backend.product.model.StockMovement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final OrderRepository          orderRepository;
     private final ProductVariantRepository productVariantRepository;
     private final CashOpeningRepository    cashOpeningRepository;
+    private final StockMovementRepository  stockMovementRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -95,5 +99,22 @@ public class DashboardServiceImpl implements DashboardService {
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<StockMovementDTO> getStockInputs() {
+        return stockMovementRepository.findByType(StockMovement.MovementType.INPUT).stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    private StockMovementDTO convertToDTO(StockMovement movement) {
+        return StockMovementDTO.builder()
+                .id(movement.getId())
+                .quantity(movement.getQuantity())
+                .type(movement.getType().name())
+                .createdAt(movement.getCreatedAt())
+                .build();
     }
 }

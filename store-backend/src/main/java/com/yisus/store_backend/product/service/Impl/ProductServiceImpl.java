@@ -228,6 +228,14 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductDTO> getProductsByCategoryId(Long categoryId) {
+        return productRepository.findAllByCategoryIdAndIsActiveTrue(categoryId).stream()
+                .map(this::convertToDTO)
+                .toList();
+    }
+
     private ProductDTO convertToDTO(Product product) {
         // Cargar variantes del producto con sus imágenes
         List<ProductVariant> variants = productVariantRepository.findActiveByProductId(product.getId());

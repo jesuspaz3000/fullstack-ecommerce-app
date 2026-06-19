@@ -19,6 +19,8 @@ import com.yisus.store_backend.notification.model.NotificationType;
 import com.yisus.store_backend.notification.service.NotificationService;
 import com.yisus.store_backend.user.model.User;
 import com.yisus.store_backend.user.repository.UserRepository;
+import com.yisus.store_backend.product.service.StockMovementService;
+import com.yisus.store_backend.product.model.StockMovement.MovementType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.access.AccessDeniedException;
@@ -54,6 +56,7 @@ public class OrderServiceImpl implements OrderService {
     private final CashRegisterRepository cashRegisterRepository;
     private final CashOpeningRepository cashOpeningRepository;
     private final NotificationService notificationService;
+    private final StockMovementService stockMovementService;
     
     @Override
     @Transactional
@@ -105,12 +108,16 @@ public class OrderServiceImpl implements OrderService {
             product.setTotalSold(product.getTotalSold() + itemDto.getQuantity());
             productRepository.save(product);
             
+            BigDecimal purchasePrice = resolveEffectivePurchasePrice(variant);
+
             // Crear order item
             OrderItem orderItem = OrderItem.builder()
                     .order(order)
                     .productVariant(variant)
                     .quantity(itemDto.getQuantity())
                     .unitPrice(unitPrice)
+                    .purchasePrice(purchasePrice)
+                    .purchasePriceEstimated(Boolean.FALSE)
                     .build();
             
             order.getOrderItems().add(orderItem);
@@ -119,6 +126,7 @@ public class OrderServiceImpl implements OrderService {
             int newStock = variant.getStock() - itemDto.getQuantity();
             variant.setStock(newStock);
             productVariantRepository.save(variant);
+            stockMovementService.registerMovement(variant, itemDto.getQuantity(), MovementType.OUTPUT, "SALE");
 
             // Notificar si el stock quedó en o por debajo del mínimo (solo usuarios con centro de notificaciones)
             int minStock = variant.getMinStock() != null ? variant.getMinStock() : 0;
@@ -210,6 +218,7 @@ public class OrderServiceImpl implements OrderService {
                 ProductVariant variant = item.getProductVariant();
                 variant.setStock(variant.getStock() + item.getQuantity());
                 productVariantRepository.save(variant);
+                stockMovementService.registerMovement(variant, item.getQuantity(), MovementType.INPUT, "CANCELLED_SALE");
 
                 // Revertir total_sold al cancelar
                 Product prod = variant.getProduct();
@@ -297,7 +306,7 @@ public class OrderServiceImpl implements OrderService {
     @Transactional(readOnly = true)
     public List<OrderDTO> getAllOrders(String search) {
         if (search == null || search.trim().isEmpty()) {
-            List<Order> orders = orderRepository.findAll();
+            List<Order> orders = orderRepository.findAllWithItems();
             return orders.stream()
                     .map(this::convertToDTO)
                     .collect(Collectors.toList());
@@ -401,6 +410,17 @@ public class OrderServiceImpl implements OrderService {
         ProductVariant v = item.getProductVariant();
         List<ProductImage> images = productImageRepository.findByProductVariantIdOrderByIsMainDesc(v.getId());
         String imageUrl = images.isEmpty() ? null : images.get(0).getUrl();
+
+        BigDecimal purchasePrice;
+        boolean profitEstimated;
+        if (item.getPurchasePrice() != null) {
+            purchasePrice = item.getPurchasePrice();
+            profitEstimated = Boolean.TRUE.equals(item.getPurchasePriceEstimated());
+        } else {
+            purchasePrice = resolveEffectivePurchasePrice(v);
+            profitEstimated = purchasePrice != null;
+        }
+
         return OrderItemDTO.builder()
                 .id(item.getId())
                 .orderId(item.getOrder().getId())
@@ -412,10 +432,21 @@ public class OrderServiceImpl implements OrderService {
                 .imageUrl(imageUrl)
                 .quantity(item.getQuantity())
                 .unitPrice(item.getUnitPrice())
+                .purchasePrice(purchasePrice)
+                .profitEstimated(profitEstimated)
                 .totalPrice(item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .createdAt(item.getCreatedAt())
                 .updatedAt(item.getUpdatedAt())
                 .build();
+    }
+
+    /** Precio de compra efectivo: variante → producto. */
+    private BigDecimal resolveEffectivePurchasePrice(ProductVariant variant) {
+        if (variant.getPurchasePrice() != null) {
+            return variant.getPurchasePrice();
+        }
+        Product product = variant.getProduct();
+        return product != null ? product.getPurchasePrice() : null;
     }
     
     private PaymentDTO convertPaymentToDTO(Payment payment) {

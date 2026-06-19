@@ -37,6 +37,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "ORDER BY o.createdAt ASC")
     List<Order> findBySessionIdWithDetails(@Param("sessionId") Long sessionId);
 
+    @Query("SELECT DISTINCT o FROM Order o " +
+           "LEFT JOIN FETCH o.user " +
+           "LEFT JOIN FETCH o.orderItems oi " +
+           "LEFT JOIN FETCH oi.productVariant pv " +
+           "LEFT JOIN FETCH pv.product")
+    List<Order> findAllWithItems();
+
     // ── Dashboard ─────────────────────────────────────────────────────────────
 
     @Query("SELECT COUNT(o), COALESCE(SUM(o.total), 0) FROM Order o " +

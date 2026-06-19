@@ -37,6 +37,14 @@ public class OrderItem {
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPrice;
 
+    /** Costo unitario congelado al momento de la venta (null en órdenes históricas sin backfill). */
+    @Column(name = "purchase_price", precision = 10, scale = 2)
+    private BigDecimal purchasePrice;
+
+    /** true si purchasePrice proviene de backfill; null/false en ventas nuevas con costo congelado. */
+    @Column(name = "purchase_price_estimated")
+    private Boolean purchasePriceEstimated;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
